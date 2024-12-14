@@ -1,0 +1,8 @@
+Processor
+.vscode
+*.out
+*.mpp
+build
+logs
+*.ast
+*.asm
