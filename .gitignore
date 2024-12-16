@@ -1,8 +1,9 @@
 Processor
 .vscode
-*.out
-*.mpp
 build
 logs
+*.mpp
+*.out
 *.ast
 *.asm
+*.lol
