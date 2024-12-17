@@ -26,69 +26,76 @@ enum ElemType {
 enum OperatorType {
 //mathematical operators
     OP_ADD = 0,    ///< +
-    OP_SUB,        ///< -
-    OP_MUL,        ///< *
-    OP_DIV,        ///< /
-    OP_POW,        ///< ^
-    OP_SIN,        ///< sin
-    OP_COS,        ///< cos
-    OP_SINH,       ///< sh
-    OP_COSH,       ///< ch
-    OP_TAN,        ///< tan
-    OP_CTG,        ///< ctg
-    OP_LOGN,       ///< ln
+    OP_SUB = 1,        ///< -
+    OP_MUL = 2,        ///< *
+    OP_DIV = 3,        ///< /
+    OP_POW = 4,        ///< ^
+    OP_SQRT = 5,       ///< sqrt()
+    OP_SIN = 6,        ///< sin
+    OP_COS = 7,        ///< cos
+    OP_SINH = 8,       ///< sh
+    OP_COSH = 9,       ///< ch
+    OP_TAN = 10,        ///< tan
+    OP_CTG = 11,        ///< ctg
+    OP_LOGN = 12,       ///< ln
 //control flow operators
-    OP_ASSIGN,     ///< =
-    // OP_IF,         ///< if
+    OP_ASSIGN = 13,     ///< =
+    OP_IF = 14,         ///< if
     // OP_WHILE,      ///< while
     // OP_FUNC_DECL,  ///< declare function
     // OP_VAR_DECL,   ///< declare variable
-    OP_IN,         ///< scanf, cin
-    OP_OUT,        ///< printf, cout
+    OP_IN = 15,         ///< scanf, cin
+    OP_OUT = 16,        ///< printf, cout
 //other operators
-    OP_LBRACKET,   ///< (
-    OP_RBRACKET,   ///< )
-    OP_SEMICOLON,  ///< ;
-    OP_TO,         ///< Just keyword, does nothing
+    OP_LBRACKET = 17,   ///< (
+    OP_RBRACKET = 18,   ///< )
+    OP_LABRACKET = 19,  ///< <
+    OP_RABRACKET = 20,  ///< >
+    OP_SEMICOLON = 21,  ///< ;
+    OP_ARROW = 22,      ///< ->
 
-    OP_DOLLAR,     /// $
-    OP_RUBLE,      /// ₽
-    OP_EOF         ///< \0
+    OP_DOLLAR = 23,     /// $
+    OP_RUBLE = 24,      /// ₽
+    OP_EOF = 25        ///< \0
 };
 
 typedef struct {
     enum OperatorType opCode;
     bool binary;            ///< Has two arguments
-    const char *str;        ///< string to write in dump and search in language
+    const char *str;        ///< string to search in language
+    const char *dotStr;     ///< string to write in dump
     int priority;      ///< Priority of operation (bigger = executes first) (affects only tex)
 } Operator_t;
 
 const Operator_t operators[] = {
-    {.opCode = OP_ADD,  .binary = 1, .str = "+"   , .priority = 0},
-    {.opCode = OP_SUB,  .binary = 1, .str = "-"   , .priority = 0},
-    {.opCode = OP_MUL,  .binary = 1, .str = "*"   , .priority = 1},
-    {.opCode = OP_DIV,  .binary = 1, .str = "/"   , .priority = 1},
-    {.opCode = OP_POW,  .binary = 1, .str = "^"   , .priority = 2},
-    {.opCode = OP_SIN,  .binary = 0, .str = "sin" , .priority = 3},
-    {.opCode = OP_COS,  .binary = 0, .str = "cos" , .priority = 3},
-    {.opCode = OP_SINH, .binary = 0, .str = "sh"  , .priority = 3},
-    {.opCode = OP_COSH, .binary = 0, .str = "ch"  , .priority = 3},
-    {.opCode = OP_TAN,  .binary = 0, .str = "tg"  , .priority = 3},
-    {.opCode = OP_CTG,  .binary = 0, .str = "ctg" , .priority = 3},
-    {.opCode = OP_LOGN, .binary = 0, .str = "ln"  , .priority = 3},
+    {.opCode = OP_ADD,  .binary = 1, .str = "+"   , .dotStr = "+", .priority = 0},
+    {.opCode = OP_SUB,  .binary = 1, .str = "-"   , .dotStr = "-", .priority = 0},
+    {.opCode = OP_MUL,  .binary = 1, .str = "*"   , .dotStr = "*", .priority = 1},
+    {.opCode = OP_DIV,  .binary = 1, .str = "/"   , .dotStr = "/", .priority = 1},
+    {.opCode = OP_POW,  .binary = 1, .str = "^"   , .dotStr = "^", .priority = 2},
+    {.opCode = OP_SQRT, .binary = 0, .str = "sqrt", .dotStr = "sqrt", .priority = 3},
+    {.opCode = OP_SIN,  .binary = 0, .str = "sin" , .dotStr = "sin", .priority = 3},
+    {.opCode = OP_COS,  .binary = 0, .str = "cos" , .dotStr = "cos", .priority = 3},
+    {.opCode = OP_SINH, .binary = 0, .str = "sh"  , .dotStr = "sh", .priority = 3},
+    {.opCode = OP_COSH, .binary = 0, .str = "ch"  , .dotStr = "ch", .priority = 3},
+    {.opCode = OP_TAN,  .binary = 0, .str = "tg"  , .dotStr = "tg", .priority = 3},
+    {.opCode = OP_CTG,  .binary = 0, .str = "ctg" , .dotStr = "ctg", .priority = 3},
+    {.opCode = OP_LOGN, .binary = 0, .str = "ln"  , .dotStr = "ln", .priority = 3},
 
-    {.opCode = OP_ASSIGN,       .binary = 2, .str = "="           , .priority = -1},
-    // {.opCode = OP_IF,           .binary = 0, .str = "if"            , .priority = 3},
+    {.opCode = OP_ASSIGN,       .binary = 2, .str = "=", .dotStr = "=", .priority = -1},
+    {.opCode = OP_IF,           .binary = 0, .str = "if", .dotStr = "if", .priority = -2},
     // {.opCode = OP_WHILE,        .binary = 0, .str = "while"         , .priority = 3},
     // {.opCode = OP_FUNC_DECL,    .binary = 0, .str = "Transaction"   , .priority = 3},
     // {.opCode = OP_VAR_DECL,     .binary = 0, .str = "Account"       , .priority = 3},
-    {.opCode = OP_IN,           .binary = 0, .str = "Invest"        , .priority = 3},
-    {.opCode = OP_OUT,          .binary = 0, .str = "ShowBalance"   , .priority = 3},
+    {.opCode = OP_IN,           .binary = 0, .str = "Invest", .dotStr = "In", .priority = 3},
+    {.opCode = OP_OUT,          .binary = 0, .str = "ShowBalance", .dotStr = "Out", .priority = 3},
 
-    {.opCode = OP_LBRACKET,    .binary = 0, .str = "("  , .priority = 3},
-    {.opCode = OP_RBRACKET,    .binary = 0, .str = ")"  , .priority = 3},
-    {.opCode = OP_SEMICOLON,   .binary = 2, .str = "%"  , .priority = -2},
-    {.opCode = OP_TO,          .binary = 0, .str = "to" , .priority = 3},
+    {.opCode = OP_LBRACKET,    .binary = 0, .str = "("  , .dotStr = "(", .priority = 3},
+    {.opCode = OP_RBRACKET,    .binary = 0, .str = ")"  , .dotStr = ")", .priority = 3},
+    {.opCode = OP_LABRACKET,   .binary = 1, .str = "<"  , .dotStr = "&lt", .priority = -1},
+    {.opCode = OP_RABRACKET,   .binary = 1, .str = ">"  , .dotStr = "&gt", .priority = -1},
+    {.opCode = OP_SEMICOLON,   .binary = 1, .str = "%"  , .dotStr = ";", .priority = -2},
+    {.opCode = OP_ARROW,       .binary = 1, .str = "->" , .dotStr = "->", .priority = 3},
 
     {.opCode = OP_DOLLAR,      .binary = 0, .str = "$" , .priority = 10},
     {.opCode = OP_RUBLE,       .binary = 0, .str = "₽" , .priority = 10},

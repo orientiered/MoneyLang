@@ -14,15 +14,27 @@ typedef struct {
 } ParseContext_t;
 
 /*
-Positive examples = {x = 3$ + 2₽ - x^(3+2) % Invest x % ShowTaxes x}
+Positive examples = {x = 3$ + 2₽ - x^(3+2) % Invest x % ShowTaxes x
+if x+5 -> y = -5 %
+if y > x ->
+<
+    Invest x %
+    ShowTaxes y%
+>
+
+Invest x if y %}
 Negative examples = {y, sin(), 5.23 , Invest x+5}
 
-Grammar::= [Statement %]+ EOF
-Statement ::= Input | Print | Assignment
+Grammar::= Block+ EOF
+Block  ::= "<" Statement+ ">" || Statement
+Statement ::= [Input | Print | Assignment] % || If
+If     ::= "if" Expr -> Block
 Print  ::= "ShowBalance" Expr
 Input  ::= "Invest" Identifier
 Assignment ::=  Identifier '=' Expr
-Expr   ::=MulPr{ ['+''-']  MulPr}*
+
+Expr   ::=AddPr{ ['>''<'] AddPr}*
+AddPr  ::=MulPr{ ['+''-']  MulPr}*
 MulPr  ::=PowPr{ ['*''/']  PowPr}*
 PowPr  ::=Primary{ '^'  PowPr}?
 

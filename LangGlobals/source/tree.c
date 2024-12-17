@@ -114,7 +114,7 @@ static bool recursiveDumpTree(LangContext_t *context, Node_t *node, bool minifie
     switch(node->type) {
         case OPERATOR:
             fillColor = OPERATOR_COLOR;
-            fprintf(dotFile, "TYPE = OPR(%d) | %s | ", node->type, operators[node->value.op].str);
+            fprintf(dotFile, "TYPE = OPR(%d) | %s | ", node->type, operators[node->value.op].dotStr);
             break;
         case IDENTIFIER:
             fillColor = IDENTIFIER_COLOR;

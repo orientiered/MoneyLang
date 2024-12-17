@@ -20,13 +20,18 @@ FrontendStatus_t syntaxAnalysis(LangContext_t *frontend) {
 
     return (frontend->tree) ? FRONTEND_SUCCESS : FRONTEND_SYNTAX_ERROR;
 }
+
+
+static Node_t *GetBlock(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetStatement(ParseContext_t *context, LangContext_t *frontend);
+static Node_t *GetIf(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetAssignment(ParseContext_t *context, LangContext_t *frontend);
 
 static Node_t *GetInput(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetPrint(ParseContext_t *context, LangContext_t *frontend);
 
 static Node_t *GetExpr(ParseContext_t *context, LangContext_t *frontend);
+static Node_t *GetAddPr(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetMulPr(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetPowPr(ParseContext_t *context, LangContext_t *frontend);
 
@@ -40,8 +45,12 @@ static Node_t *GetNum(ParseContext_t *context, LangContext_t *frontend);
 #define LOG_ENTRY() \
     logPrint(L_EXTRA, 0, "Entered %s %d:%d\n\n", __PRETTY_FUNCTION__, context->pointer->line, context->pointer->column)
 
-#define LOG_EXIT() \
-    logPrint(L_EXTRA, 0, "Exited  %s %d:%d\n\n", __PRETTY_FUNCTION__, context->pointer->line, context->pointer->column)
+#define LOG_EXIT() ;
+    //logPrint(L_EXTRA, 0, "Exited  %s %d:%d\n\n", __PRETTY_FUNCTION__, context->pointer->line, context->pointer->column)
+
+#define SUCCESS (context->status == PARSE_SUCCESS)
+#define SOFT_ERR (context->status == SOFT_ERROR)
+#define HARD_ERR (context->status == HARD_ERROR)
 
 static bool cmpOp(const Token_t *token, enum OperatorType op) {
     assert(token);
@@ -53,29 +62,21 @@ static Node_t *GetGrammar(ParseContext_t *context, LangContext_t *frontend) {
     Node_t *val = NULL;         // value that will be returned
     Node_t *current = NULL;     // current operator
     while (1) {
-        Node_t *left = GetStatement(context, frontend);
+        Node_t *right = GetBlock(context, frontend);
         if (context->status != PARSE_SUCCESS)
             break;
 
-        if (!cmpOp(context->pointer, OP_SEMICOLON)) {
-            SyntaxError(context, frontend, NULL, "Expected OP_SEMICOLON (%%)\n");
-        }
-        Node_t *op = &context->pointer->node;
-
-        op->left = left;
-        left->parent = op;
-
         if (!val) { //setting val with first ;
-            val = op;
+            val = right;
         }
 
         if (current) { // updating current
-            current->right = op;
-            op->parent = current;
+            current->right = right;
+            right->parent = current;
         }
 
-        current = op;
-        context->pointer++;
+        current = right;
+        DUMP_TREE(frontend, val, 0);
     }
 
     context->status = PARSE_SUCCESS;
@@ -88,22 +89,106 @@ static Node_t *GetGrammar(ParseContext_t *context, LangContext_t *frontend) {
     }
 }
 
-static Node_t *GetStatement(ParseContext_t *context, LangContext_t *frontend) {
+
+static Node_t *GetIf(ParseContext_t *context, LangContext_t *frontend) {
+    LOG_ENTRY();
+    if (!cmpOp(context->pointer, OP_IF)) {
+        context->status = SOFT_ERROR;
+        return NULL;
+    }
+    Node_t *val = &context->pointer->node;
+    context->pointer++;
+
+    Node_t *left = GetExpr(context, frontend);
+    if (!SUCCESS)
+        SyntaxError(context, frontend, NULL, "Expected expression after if\n");
+
+    if (!cmpOp(context->pointer, OP_ARROW))
+        SyntaxError(context, frontend, NULL, "Expected -> in if statement\n");
+    Node_t *semicolon = &context->pointer->node;
+    semicolon->value.op = OP_SEMICOLON;
+    context->pointer++;
+
+    Node_t *right = GetBlock(context, frontend);
+    if (!SUCCESS)
+        SyntaxError(context, frontend, NULL, "Expected code block after -> in if statement\n");
+
+    semicolon->left = val;
+    val->parent = semicolon;
+
+    val->left = left;
+    val->right = right;
+    left->parent = val;
+    right->parent = val;
+    return semicolon;
+}
+
+static Node_t *GetBlock(ParseContext_t *context, LangContext_t *frontend) {
+    LOG_ENTRY();
+    if (cmpOp(context->pointer, OP_LABRACKET)) {
+        context->pointer++;
+
+        Node_t *val = GetStatement(context, frontend);
+        if (!SUCCESS) {
+            context->status = HARD_ERROR;
+            return NULL;
+        }
+
+        Node_t *current = val;
+
+        while (1) {
+            Node_t *right = GetStatement(context, frontend);
+            if (SOFT_ERR)
+                break;
+            else if (HARD_ERR)
+                return NULL;
+
+            current->right = right;
+            right->parent = current;
+
+            current = right;
+        }
+        context->status = PARSE_SUCCESS;
+
+        if (!cmpOp(context->pointer, OP_RABRACKET)) {
+            SyntaxError(context, frontend, NULL, "Expected '>'\n");
+        }
+        Node_t *linker = &context->pointer->node;
+        context->pointer++;
+        linker->value.op = OP_SEMICOLON;
+        linker->left = val;
+        val->parent = linker;
+
+        val = linker;
+        LOG_EXIT();
+        // DUMP_TREE(frontend, val, 0);
+        return val;
+    }
+
+    Node_t *val = GetStatement(context, frontend);
+    if (!SUCCESS)
+        return NULL;
+
+    // DUMP_TREE(frontend, val, 0);
+    return val;
+}
+
+static Node_t *GetStatementBase(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
     Node_t *val = GetInput(context, frontend);
-    if (context->status == PARSE_SUCCESS)
+    if (SUCCESS)
         return val;
-    else if (context->status == HARD_ERROR)
+    else if (HARD_ERR)
         return NULL;
-    else if (context->status == SOFT_ERROR)
+    else if (SOFT_ERR)
         context->status = PARSE_SUCCESS;
 
     val = GetPrint(context, frontend);
-    if (context->status == PARSE_SUCCESS)
+    if (SUCCESS)
         return val;
-    else if (context->status == HARD_ERROR)
+    else if (HARD_ERR)
         return NULL;
-    else if (context->status == SOFT_ERROR)
+    else if (SOFT_ERR)
         context->status = PARSE_SUCCESS;
 
     val = GetAssignment(context, frontend);
@@ -113,6 +198,37 @@ static Node_t *GetStatement(ParseContext_t *context, LangContext_t *frontend) {
 
     LOG_EXIT();
     return val;
+}
+
+static Node_t *GetStatement(ParseContext_t *context, LangContext_t *frontend) {
+    LOG_ENTRY();
+    Node_t *val = GetStatementBase(context, frontend);
+    DUMP_TREE(frontend, val, 0);
+
+    if (SUCCESS) {
+        if (!cmpOp(context->pointer, OP_SEMICOLON))
+            SyntaxError(context, frontend, NULL, "Expected %%\n");
+
+        Node_t *op = &context->pointer->node;
+        context->pointer++;
+
+        op->left = val;
+        val->parent = op;
+        val = op;
+        // DUMP_TREE(frontend, op, 0);
+
+        LOG_EXIT();
+        return val;
+    }
+
+    if (SOFT_ERR) {
+        context->status = PARSE_SUCCESS;
+        val = GetIf(context, frontend);
+        if (SUCCESS)
+            return val;
+    }
+
+    return NULL;
 }
 
 static Node_t *GetInput(ParseContext_t *context, LangContext_t *frontend) {
@@ -190,8 +306,37 @@ static Node_t *GetAssignment(ParseContext_t *context, LangContext_t *frontend) {
     return op;
 }
 
-
 static Node_t *GetExpr(ParseContext_t *context, LangContext_t *frontend) {
+    LOG_ENTRY();
+
+    Node_t *left = GetAddPr(context, frontend);
+    if (context->status != PARSE_SUCCESS)
+        return left;
+
+    while (cmpOp(context->pointer, OP_RABRACKET) || cmpOp(context->pointer, OP_LABRACKET)) {
+        Node_t *op = &context->pointer->node;
+
+        context->pointer++;
+        Token_t *lastToken = context->pointer;
+
+        Node_t *right = GetAddPr(context, frontend);
+
+        if (context->status != PARSE_SUCCESS)
+            SyntaxTokenError(lastToken, frontend, NULL, "Expected expression after > or <\n");
+
+        op->left = left;
+        op->right = right;
+        left->parent = op;
+        right->parent = op;
+
+        left = op;
+    }
+
+    LOG_EXIT();
+    return left;
+}
+
+static Node_t *GetAddPr(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
 
     Node_t *left = GetMulPr(context, frontend);
@@ -207,7 +352,7 @@ static Node_t *GetExpr(ParseContext_t *context, LangContext_t *frontend) {
         Node_t *right = GetMulPr(context, frontend);
 
         if (context->status != PARSE_SUCCESS) {
-            SyntaxTokenError(lastToken, frontend, NULL, "Expected expression with priority >= +-\n");
+            SyntaxTokenError(lastToken, frontend, NULL, "Expected expression after + or - \n");
         }
 
         op->left = left;
@@ -238,7 +383,7 @@ static Node_t *GetMulPr(ParseContext_t *context, LangContext_t *frontend) {
         Node_t *right = GetPowPr(context, frontend);
 
         if (context->status != PARSE_SUCCESS) {
-            SyntaxTokenError(lastToken, frontend, NULL, "Expected expression with ^\n");
+            SyntaxTokenError(lastToken, frontend, NULL, "Expected expression after * or /\n");
         }
 
         op->left = left;
@@ -269,8 +414,7 @@ static Node_t *GetPowPr(ParseContext_t *context, LangContext_t *frontend) {
 
         Node_t *right = GetPowPr(context, frontend);
         if (context->status != PARSE_SUCCESS)
-            SyntaxTokenError(lastToken, frontend, NULL, "Expected PowPr expression\n");
-
+            SyntaxTokenError(lastToken, frontend, NULL, "Expected expression after ^\n");
 
         op->left = left;
         op->right = right;

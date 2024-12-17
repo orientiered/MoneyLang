@@ -36,7 +36,7 @@ ifeq ($(origin CC),default)
 endif
 
 #Name of compiled executable
-NAME := ./front.out
+NAME := ../front.out
 #Name of directory with headers
 INCLUDEDIRS := ./include ./global/include ../LangGlobals/include/
 
