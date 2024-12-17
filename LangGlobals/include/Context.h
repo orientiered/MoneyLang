@@ -64,31 +64,32 @@ typedef struct {
     bool binary;            ///< Has two arguments
     const char *str;        ///< string to search in language
     const char *dotStr;     ///< string to write in dump
+    const char *asmStr;     ///< ~analog in asm code
     int priority;      ///< Priority of operation (bigger = executes first) (affects only tex)
 } Operator_t;
 
 const Operator_t operators[] = {
-    {.opCode = OP_ADD,  .binary = 1, .str = "+"   , .dotStr = "+", .priority = 0},
-    {.opCode = OP_SUB,  .binary = 1, .str = "-"   , .dotStr = "-", .priority = 0},
-    {.opCode = OP_MUL,  .binary = 1, .str = "*"   , .dotStr = "*", .priority = 1},
-    {.opCode = OP_DIV,  .binary = 1, .str = "/"   , .dotStr = "/", .priority = 1},
-    {.opCode = OP_POW,  .binary = 1, .str = "^"   , .dotStr = "^", .priority = 2},
-    {.opCode = OP_SQRT, .binary = 0, .str = "sqrt", .dotStr = "sqrt", .priority = 3},
-    {.opCode = OP_SIN,  .binary = 0, .str = "sin" , .dotStr = "sin", .priority = 3},
-    {.opCode = OP_COS,  .binary = 0, .str = "cos" , .dotStr = "cos", .priority = 3},
-    {.opCode = OP_SINH, .binary = 0, .str = "sh"  , .dotStr = "sh", .priority = 3},
-    {.opCode = OP_COSH, .binary = 0, .str = "ch"  , .dotStr = "ch", .priority = 3},
-    {.opCode = OP_TAN,  .binary = 0, .str = "tg"  , .dotStr = "tg", .priority = 3},
-    {.opCode = OP_CTG,  .binary = 0, .str = "ctg" , .dotStr = "ctg", .priority = 3},
-    {.opCode = OP_LOGN, .binary = 0, .str = "ln"  , .dotStr = "ln", .priority = 3},
+    {.opCode = OP_ADD,  .binary = 1, .str = "+"   , .dotStr = "+",    .asmStr = "ADD", .priority = 0},
+    {.opCode = OP_SUB,  .binary = 1, .str = "-"   , .dotStr = "-",    .asmStr = "SUB", .priority = 0},
+    {.opCode = OP_MUL,  .binary = 1, .str = "*"   , .dotStr = "*",    .asmStr = "MUL", .priority = 1},
+    {.opCode = OP_DIV,  .binary = 1, .str = "/"   , .dotStr = "/",    .asmStr = "DIV", .priority = 1},
+    {.opCode = OP_POW,  .binary = 1, .str = "^"   , .dotStr = "^",    .asmStr = "", .priority = 2},
+    {.opCode = OP_SQRT, .binary = 0, .str = "sqrt", .dotStr = "sqrt", .asmStr = "SQRT", .priority = 3},
+    {.opCode = OP_SIN,  .binary = 0, .str = "sin" , .dotStr = "sin",  .asmStr = "SIN", .priority = 3},
+    {.opCode = OP_COS,  .binary = 0, .str = "cos" , .dotStr = "cos",  .asmStr = "COS", .priority = 3},
+    {.opCode = OP_SINH, .binary = 0, .str = "sh"  , .dotStr = "sh",   .asmStr = "", .priority = 3},
+    {.opCode = OP_COSH, .binary = 0, .str = "ch"  , .dotStr = "ch",   .asmStr = "", .priority = 3},
+    {.opCode = OP_TAN,  .binary = 0, .str = "tg"  , .dotStr = "tg",   .asmStr = "", .priority = 3},
+    {.opCode = OP_CTG,  .binary = 0, .str = "ctg" , .dotStr = "ctg",  .asmStr = "", .priority = 3},
+    {.opCode = OP_LOGN, .binary = 0, .str = "ln"  , .dotStr = "ln",   .asmStr = "", .priority = 3},
 
-    {.opCode = OP_ASSIGN,       .binary = 2, .str = "=", .dotStr = "=", .priority = -1},
-    {.opCode = OP_IF,           .binary = 0, .str = "if", .dotStr = "if", .priority = -2},
+    {.opCode = OP_ASSIGN,   .binary = 2, .str = "=", .dotStr = "=", .priority = -1},
+    {.opCode = OP_IF,       .binary = 0, .str = "if", .dotStr = "if", .priority = -2},
     // {.opCode = OP_WHILE,        .binary = 0, .str = "while"         , .priority = 3},
     // {.opCode = OP_FUNC_DECL,    .binary = 0, .str = "Transaction"   , .priority = 3},
     // {.opCode = OP_VAR_DECL,     .binary = 0, .str = "Account"       , .priority = 3},
-    {.opCode = OP_IN,           .binary = 0, .str = "Invest", .dotStr = "In", .priority = 3},
-    {.opCode = OP_OUT,          .binary = 0, .str = "ShowBalance", .dotStr = "Out", .priority = 3},
+    {.opCode = OP_IN,       .binary = 0, .str = "Invest",      .dotStr = "In",  .asmStr = "IN",  .priority = 3},
+    {.opCode = OP_OUT,      .binary = 0, .str = "ShowBalance", .dotStr = "Out", .asmStr = "OUT", .priority = 3},
 
     {.opCode = OP_LBRACKET,    .binary = 0, .str = "("  , .dotStr = "(", .priority = 3},
     {.opCode = OP_RBRACKET,    .binary = 0, .str = ")"  , .dotStr = ")", .priority = 3},
