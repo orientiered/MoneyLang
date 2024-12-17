@@ -11,6 +11,8 @@
 #include "nameTable.h"
 #include "frontend.h"
 
+//TODO: rework operator search by finding longest match (identifier if no matches)
+
 static void skipSpaces(const char **str, size_t *line, size_t *col) {
     logPrint(L_EXTRA, 0, "Skipping comments starting from %10s\n", *str);
 
@@ -202,7 +204,7 @@ FrontendStatus_t lexerDump(LangContext_t *context) {
                 break;
             case IDENTIFIER:
                 logPrint(L_ZERO, 0, "\tIdentifier: '%s' (%d)\n",
-                getIdentifier(&context->nameTable, current->node.value.id).str, current->node.value.id);
+                getIdFromTable(&context->nameTable, current->node.value.id).str, current->node.value.id);
                 break;
             default:
                 assert(0);

@@ -21,18 +21,19 @@ if y > x ->
     Invest x %
     ShowTaxes y%
 >
-Transaction x,y -> mean -> Pay (x + y) / 2 %
+Transaction x -> mean -> Pay (x + y) / 2 %
 
 Invest x if y %}
 Negative examples = {y, sin(), 5.23 , Invest x+5}
 
-Grammar::= Block+ EOF
-Function::= "Transaction" Identifier[,Identifier]* -> Identifier -> Block
+Grammar::= [FunctionDecl | Block ]+ EOF
+FunctionDecl::= "Transaction" Identifier? -> Identifier -> Block
 Block  ::= "<" Statement+ ">" || Statement
-Statement ::= [Input | Print | Assignment] % | If | While
+Statement ::= [Input | Print | Pay | Assignment] % | If | While
 If     ::= "if" Expr -> Block
 While  ::= "while" Expr -> Block
 Print  ::= "ShowBalance" Expr
+Pay    ::= "Pay Expr
 Input  ::= "Invest" Identifier
 Assignment ::=  Identifier '=' Expr
 
@@ -41,7 +42,7 @@ AddPr  ::=MulPr{ ['+''-']  MulPr}*
 MulPr  ::=PowPr{ ['*''/']  PowPr}*
 PowPr  ::=Primary{ '^'  PowPr}?
 
-Primary::= '(' Expr ')' | FuncOper | Var | Num
+Primary::= '(' Expr ')' | FuncOper | Identifier(Expr?) | Identifier | Num
 
 FuncOper   ::=["sin" "cos" "tg" "ctg" "ln"]'(' Expr ')'
 Identifier ::=['a'-'z''_']+ ['a'-'z''_''0'-'9']*

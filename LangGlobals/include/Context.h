@@ -42,21 +42,27 @@ enum OperatorType {
     OP_ASSIGN = 13,     ///< =
     OP_IF = 14,         ///< if
     OP_WHILE = 15,      ///< while
-    // OP_FUNC_DECL,  ///< declare function
+    OP_FUNC_DECL = 16,  ///< declare function
     // OP_VAR_DECL,   ///< declare variable
-    OP_IN = 16,         ///< scanf, cin
-    OP_OUT = 17,        ///< printf, cout
+    OP_IN = 17,         ///< scanf, cin
+    OP_OUT = 18,        ///< printf, cout
 //other operators
-    OP_LBRACKET = 18,   ///< (
-    OP_RBRACKET = 19,   ///< )
-    OP_LABRACKET = 20,  ///< <
-    OP_RABRACKET = 21,  ///< >
-    OP_SEMICOLON = 22,  ///< ;
-    OP_ARROW = 23,      ///< ->
+    OP_LBRACKET = 19,   ///< (
+    OP_RBRACKET = 20,   ///< )
+    OP_LABRACKET = 21,  ///< <
+    OP_RABRACKET = 22,  ///< >
+    OP_SEMICOLON = 23,  ///< ;
+    OP_ARROW = 24,      ///< ->
 
-    OP_DOLLAR = 24,     /// $
-    OP_RUBLE = 25,      /// ₽
-    OP_EOF = 26        ///< \0
+    OP_COMMA = 25,      /// ,
+
+    OP_DOLLAR = 26,     /// $
+    OP_RUBLE = 27,      /// ₽
+
+    OP_RET  = 28,
+    OP_CALL = 29,       ///
+    OP_FUNC_HEADER = 30,
+    OP_EOF = 31        ///< \0
 };
 
 typedef struct {
@@ -83,10 +89,10 @@ const Operator_t operators[] = {
     {.opCode = OP_CTG,  .binary = 0, .str = "ctg" , .dotStr = "ctg",  .asmStr = "", .priority = 3},
     {.opCode = OP_LOGN, .binary = 0, .str = "ln"  , .dotStr = "ln",   .asmStr = "", .priority = 3},
 
-    {.opCode = OP_ASSIGN,   .binary = 2, .str = "=", .dotStr = "=", .priority = -1},
-    {.opCode = OP_IF,       .binary = 0, .str = "if", .dotStr = "if", .priority = -2},
-    {.opCode = OP_WHILE,    .binary = 0, .str = "while", .dotStr = "while", .priority = -2},
-    // {.opCode = OP_FUNC_DECL,    .binary = 0, .str = "Transaction"   , .priority = 3},
+    {.opCode = OP_ASSIGN,    .binary = 2, .str = "=", .dotStr = "=", .priority = -1},
+    {.opCode = OP_IF,        .binary = 0, .str = "if", .dotStr = "if", .priority = -2},
+    {.opCode = OP_WHILE,     .binary = 0, .str = "while", .dotStr = "while", .priority = -2},
+    {.opCode = OP_FUNC_DECL, .binary = 0, .str = "Transaction", .dotStr = "Transaction", .priority = -2},
     // {.opCode = OP_VAR_DECL,     .binary = 0, .str = "Account"       , .priority = 3},
     {.opCode = OP_IN,       .binary = 0, .str = "Invest",      .dotStr = "In",  .asmStr = "IN",  .priority = 3},
     {.opCode = OP_OUT,      .binary = 0, .str = "ShowBalance", .dotStr = "Out", .asmStr = "OUT", .priority = 3},
@@ -98,9 +104,14 @@ const Operator_t operators[] = {
     {.opCode = OP_SEMICOLON,   .binary = 1, .str = "%"  , .dotStr = ";", .priority = -2},
     {.opCode = OP_ARROW,       .binary = 1, .str = "->" , .dotStr = "->", .priority = 3},
 
-    {.opCode = OP_DOLLAR,      .binary = 0, .str = "$" , .priority = 10},
-    {.opCode = OP_RUBLE,       .binary = 0, .str = "₽" , .priority = 10},
+    {.opCode = OP_COMMA,       .binary = 1, .str = "," , .dotStr = ",",   .priority = -2},
 
+    {.opCode = OP_DOLLAR,      .binary = 0, .str = "$"},
+    {.opCode = OP_RUBLE,       .binary = 0, .str = "₽"},
+
+    {.opCode = OP_RET,         .binary = 0, .str = "Pay", .dotStr = "ret"},
+    {.opCode = OP_CALL,        .binary = 1, .str = "", .dotStr = "call", .priority = -2},
+    {.opCode = OP_FUNC_HEADER, .binary = 1, .str = "", .dotStr = "function header"},
     {.opCode = OP_EOF,         .binary = 0, .str = "__EOF__" , .priority = -1}
 };
 

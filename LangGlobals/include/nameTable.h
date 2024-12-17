@@ -14,6 +14,7 @@ typedef struct {
     char *str;
     size_t len;
     enum IdentifierType type;
+    int argIndex;
     // int currentFunction;
 } Identifier_t;
 
@@ -46,7 +47,7 @@ int insertIdentifier(NameTable_t *table, const char *idName);
 
 int findIdentifier(NameTable_t *table, const char *idName);
 
-Identifier_t getIdentifier(NameTable_t *table, size_t idx);
+Identifier_t getIdFromTable(NameTable_t *table, size_t idx);
 
 /*===================================================================*/
 

@@ -66,7 +66,7 @@ static BackendStatus_t translateToAsmRecursive(LangContext_t *context, FILE *fil
 
     if (node->type == IDENTIFIER) {
         fprintf(file, "PUSH [%d] ; %s\n", node->value.id,
-                getIdentifier(&context->nameTable, node->value.id).str);
+                getIdFromTable(&context->nameTable, node->value.id).str);
         return BACKEND_SUCCESS;
     }
 
@@ -119,7 +119,7 @@ static BackendStatus_t translateToAsmRecursive(LangContext_t *context, FILE *fil
         case OP_IN:
             fprintf(file, "IN\n");
             fprintf(file, "POP [%d] ; %s\n",  node->left->value.id,
-                getIdentifier(&context->nameTable, node->left->value.id).str);
+                getIdFromTable(&context->nameTable, node->left->value.id).str);
             break;
         case OP_OUT: case OP_SIN: case OP_COS:
             translateToAsmRecursive(context, file, node->left);
@@ -128,7 +128,7 @@ static BackendStatus_t translateToAsmRecursive(LangContext_t *context, FILE *fil
         case OP_ASSIGN:
             translateToAsmRecursive(context, file, node->right);
             fprintf(file, "POP [%d] ; %s\n",  node->left->value.id,
-                getIdentifier(&context->nameTable, node->left->value.id).str);
+                getIdFromTable(&context->nameTable, node->left->value.id).str);
             break;
         default:
             logPrint(L_ZERO, 1, "Operator %d isn't supported yet\n", node->value.op);

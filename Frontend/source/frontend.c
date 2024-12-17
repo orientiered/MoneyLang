@@ -58,7 +58,7 @@ static bool needBrackets(Node_t *node) {
 
     if (node->type == OPERATOR) {
         if (!operators[node->value.op].binary)
-            return !(node->value.op == OP_IN || node->value.op == OP_OUT);
+            return !(node->value.op == OP_IN || node->value.op == OP_OUT || node->value.op == OP_RET);
 
         int currentPriority = operators[node->value.op].priority;
         int parentPriority  = operators[node->parent->value.op].priority;
@@ -74,9 +74,9 @@ static void printTabs(FILE *file, unsigned tabs) {
 
 static void writeAsProgramRecursive(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs);
 
-static void writeIfStatement(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
+static void writeIfWhileStatement(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
     assert(node->type == OPERATOR);
-    assert(node->value.op == OP_IF);
+    assert(node->value.op == OP_IF || node->value.op == OP_WHILE);
 
     printTabs(file, tabs);
     fprintf(file, "%s ", operators[node->value.op].str);
@@ -84,6 +84,46 @@ static void writeIfStatement(LangContext_t *context, FILE *file, Node_t *node, u
     fprintf(file, " %s \n", operators[OP_ARROW].str);
     printTabs(file, tabs);
     writeAsProgramRecursive(context, file, node->right, tabs+1);
+}
+
+static void writeFunctionDecl(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
+    assert(node->type == OPERATOR);
+    assert(node->value.op == OP_FUNC_DECL);
+
+    printTabs(file, tabs);
+    //transaction args
+    fprintf(file, "%s ", operators[OP_FUNC_DECL].str);
+    writeAsProgramRecursive(context, file, node->left->right, tabs);
+    // -> name
+    fprintf(file, " %s ", operators[OP_ARROW].str);
+    writeAsProgramRecursive(context, file, node->left->left, tabs);
+    // -> \n
+    fprintf(file, " %s \n", operators[OP_ARROW].str);
+    // body
+    printTabs(file, tabs);
+    writeAsProgramRecursive(context, file, node->right, tabs+1);
+}
+
+static void writeCall(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
+    assert(node->type == OPERATOR);
+    assert(node->value.op == OP_CALL);
+
+    writeAsProgramRecursive(context, file, node->left, tabs);
+    fprintf(file, "%s", operators[OP_LBRACKET].str);
+    writeAsProgramRecursive(context, file, node->right, tabs);
+    fprintf(file, "%s", operators[OP_RBRACKET].str);
+
+}
+
+static void writeComma(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
+    assert(node->type == OPERATOR);
+    assert(node->value.op == OP_COMMA);
+
+    writeAsProgramRecursive(context, file, node->left, tabs);
+    if (node->right) {
+        fprintf(file, "%s ", operators[OP_COMMA].str);
+        writeAsProgramRecursive(context, file, node->right, tabs);
+    }
 }
 
 static void writeSemicolon(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
@@ -100,7 +140,10 @@ static void writeSemicolon(LangContext_t *context, FILE *file, Node_t *node, uns
         fprintf(file, ">");
     }
 
-    if (node->left->value.op != OP_IF && node->left->value.op != OP_SEMICOLON)
+    //TODO: get array of specific operators
+    //! easy to forgot to add operator here
+    if (node->left->value.op != OP_IF && node->left->value.op != OP_WHILE &&
+        node->left->value.op != OP_FUNC_DECL && node->left->value.op != OP_SEMICOLON)
         fprintf(file, " %s", operators[OP_SEMICOLON].str);
     fprintf(file, "\n");
 
@@ -114,15 +157,24 @@ static void writeAsProgramRecursive(LangContext_t *context, FILE *file, Node_t *
         fprintf(file, "%lg₽", node->value.number);
         return;
     } else if (node->type == IDENTIFIER) {
-        fprintf(file, "%s", getIdentifier(&context->nameTable, node->value.id).str);
+        fprintf(file, "%s", getIdFromTable(&context->nameTable, node->value.id).str);
         return;
     }
 
-    if (node->value.op == OP_IF) {
-        writeIfStatement(context, file, node, tabs);
+    if (node->value.op == OP_IF || node->value.op == OP_WHILE) {
+        writeIfWhileStatement(context, file, node, tabs);
+        return;
+    } else if (node->value.op == OP_FUNC_DECL) {
+        writeFunctionDecl(context, file, node, tabs);
+        return;
+    } else if (node->value.op == OP_CALL) {
+        writeCall(context, file, node, tabs);
         return;
     } else if (node->value.op == OP_SEMICOLON) {
         writeSemicolon(context, file, node, tabs);
+        return;
+    } else if (node->value.op == OP_COMMA) {
+        writeComma(context, file, node, tabs);
         return;
     }
 

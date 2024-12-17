@@ -71,7 +71,7 @@ int findIdentifier(NameTable_t *table, const char *idName) {
     return NULL_IDENTIFIER;
 }
 
-Identifier_t getIdentifier(NameTable_t *table, size_t idx) {
+Identifier_t getIdFromTable(NameTable_t *table, size_t idx) {
     assert(table);
     assert(idx < table->size);
 
