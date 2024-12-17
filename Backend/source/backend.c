@@ -56,18 +56,9 @@ static BackendStatus_t translateToAsmRecursive(LangContext_t *context, FILE *fil
     assert(node);
 
     static int operatorCounter = 1;
-    static int ifCounter = 1;
-/*
-    =
-x       y + 5
+    static int ifCounter       = 1;
+    static int whileCounter    = 1;
 
-PUSH 5
-PUSH [2]; y
-ADD
-
-POP [1]; x
-
-*/
     if (node->type == NUMBER) {
         fprintf(file, "PUSH %lg\n", node->value.number);
         return BACKEND_SUCCESS;
@@ -88,14 +79,39 @@ POP [1]; x
 
             break;
         case OP_IF:
+        {
+            int currentIf = ifCounter;
+            ifCounter++;
+
+            fprintf(file, "; if %d\n; conditional part\n", currentIf);
             translateToAsmRecursive(context, file, node->left);
             fprintf(file,   "PUSH 0\n"
-                            "JE IF_END%d\n", ifCounter);
+                            "JE IF_END%d\n", currentIf);
+
+            fprintf(file, "; if %d statement part\n", currentIf);
             translateToAsmRecursive(context, file, node->right);
-            fprintf(file,   "IF_END%d:\n", ifCounter);
-            ifCounter++;
+            fprintf(file,   "IF_END%d:\n", currentIf);
             break;
+        }
+        case OP_WHILE:
+        {
+            int currentWhile = whileCounter;
+            whileCounter++;
+
+            fprintf(file, "; LOOP %d\n; conditional part\n", currentWhile);
+            fprintf(file, "LOOP%d:\n\n", currentWhile);
+            translateToAsmRecursive(context, file, node->left);
+            fprintf(file,   "PUSH 0\n"
+                            "JE LOOP_END%d\n", currentWhile);
+
+            fprintf(file, "\n; while %d statement part\n", currentWhile);
+            translateToAsmRecursive(context, file, node->right);
+            fprintf(file,   "\tJMP LOOP%d\n", currentWhile);
+            fprintf(file,   "LOOP_END%d:\n", currentWhile);
+            break;
+        }
         case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV:
+        case OP_LABRACKET: case OP_RABRACKET:
             translateToAsmRecursive(context, file, node->left);
             translateToAsmRecursive(context, file, node->right);
             fprintf(file, "%s\n", operators[node->value.op].asmStr);
@@ -108,16 +124,6 @@ POP [1]; x
         case OP_OUT: case OP_SIN: case OP_COS:
             translateToAsmRecursive(context, file, node->left);
             fprintf(file, "%s\n", operators[node->value.op].asmStr);
-            break;
-        case OP_LABRACKET:
-            translateToAsmRecursive(context, file, node->left);
-            translateToAsmRecursive(context, file, node->right);
-            fprintf(file, "CALL __LESS\n");
-            break;
-        case OP_RABRACKET:
-            translateToAsmRecursive(context, file, node->left);
-            translateToAsmRecursive(context, file, node->right);
-            fprintf(file, "CALL __GREATER\n");
             break;
         case OP_ASSIGN:
             translateToAsmRecursive(context, file, node->right);

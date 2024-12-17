@@ -41,22 +41,22 @@ enum OperatorType {
 //control flow operators
     OP_ASSIGN = 13,     ///< =
     OP_IF = 14,         ///< if
-    // OP_WHILE,      ///< while
+    OP_WHILE = 15,      ///< while
     // OP_FUNC_DECL,  ///< declare function
     // OP_VAR_DECL,   ///< declare variable
-    OP_IN = 15,         ///< scanf, cin
-    OP_OUT = 16,        ///< printf, cout
+    OP_IN = 16,         ///< scanf, cin
+    OP_OUT = 17,        ///< printf, cout
 //other operators
-    OP_LBRACKET = 17,   ///< (
-    OP_RBRACKET = 18,   ///< )
-    OP_LABRACKET = 19,  ///< <
-    OP_RABRACKET = 20,  ///< >
-    OP_SEMICOLON = 21,  ///< ;
-    OP_ARROW = 22,      ///< ->
+    OP_LBRACKET = 18,   ///< (
+    OP_RBRACKET = 19,   ///< )
+    OP_LABRACKET = 20,  ///< <
+    OP_RABRACKET = 21,  ///< >
+    OP_SEMICOLON = 22,  ///< ;
+    OP_ARROW = 23,      ///< ->
 
-    OP_DOLLAR = 23,     /// $
-    OP_RUBLE = 24,      /// ₽
-    OP_EOF = 25        ///< \0
+    OP_DOLLAR = 24,     /// $
+    OP_RUBLE = 25,      /// ₽
+    OP_EOF = 26        ///< \0
 };
 
 typedef struct {
@@ -85,7 +85,7 @@ const Operator_t operators[] = {
 
     {.opCode = OP_ASSIGN,   .binary = 2, .str = "=", .dotStr = "=", .priority = -1},
     {.opCode = OP_IF,       .binary = 0, .str = "if", .dotStr = "if", .priority = -2},
-    // {.opCode = OP_WHILE,        .binary = 0, .str = "while"         , .priority = 3},
+    {.opCode = OP_WHILE,    .binary = 0, .str = "while", .dotStr = "while", .priority = -2},
     // {.opCode = OP_FUNC_DECL,    .binary = 0, .str = "Transaction"   , .priority = 3},
     // {.opCode = OP_VAR_DECL,     .binary = 0, .str = "Account"       , .priority = 3},
     {.opCode = OP_IN,       .binary = 0, .str = "Invest",      .dotStr = "In",  .asmStr = "IN",  .priority = 3},
@@ -93,8 +93,8 @@ const Operator_t operators[] = {
 
     {.opCode = OP_LBRACKET,    .binary = 0, .str = "("  , .dotStr = "(", .priority = 3},
     {.opCode = OP_RBRACKET,    .binary = 0, .str = ")"  , .dotStr = ")", .priority = 3},
-    {.opCode = OP_LABRACKET,   .binary = 1, .str = "<"  , .dotStr = "&lt", .priority = -1},
-    {.opCode = OP_RABRACKET,   .binary = 1, .str = ">"  , .dotStr = "&gt", .priority = -1},
+    {.opCode = OP_LABRACKET,   .binary = 1, .str = "<"  , .dotStr = "&lt", .asmStr = "CALL __LESS\n", .priority = -1},
+    {.opCode = OP_RABRACKET,   .binary = 1, .str = ">"  , .dotStr = "&gt", .asmStr = "CALL __GREATER\n", .priority = -1},
     {.opCode = OP_SEMICOLON,   .binary = 1, .str = "%"  , .dotStr = ";", .priority = -2},
     {.opCode = OP_ARROW,       .binary = 1, .str = "->" , .dotStr = "->", .priority = 3},
 

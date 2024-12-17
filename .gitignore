@@ -1,7 +1,10 @@
 Processor
 .vscode
+
 build
 logs
+log.txt
+
 *.mpp
 *.out
 *.ast

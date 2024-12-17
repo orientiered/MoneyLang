@@ -59,6 +59,8 @@ override CFLAGS += $(addprefix -I,$(INCLUDEDIRS))
 $(NAME): $(GLOBAL_OBJS) $(LANG_GLOB_OBJS) $(LOCAL_OBJS)
 	$(CC) $(CFLAGS) $^ $(addprefix -l,$(LINK_LIBS)) -o $@
 
+# $(NAME): ../LangGlobals/include/context.h include/frontend.h
+
 #Easy rebuild in release mode
 RELEASE:
 	make clean

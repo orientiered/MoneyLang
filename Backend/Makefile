@@ -78,7 +78,7 @@ $(LOCAL_OBJS)      : $(OBJDIR)/%.o : source/%.c
 	$(CMD_MKDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-backend.o : ../LangGlobals/include/context.h
+# build/backend.o: ../LangGlobals/include/context.h backend.h
 #Idk how it works, but is uses compiler preprocessor to automatically generate
 #.d files with included headears that make can use
 $(GLOBAL_DEPS)     : global/$(OBJDIR)/%.d : global/source/%.cpp
