@@ -29,7 +29,7 @@ Negative examples = {y, sin(), 5.23 , Invest x+5}
 Grammar::= [FunctionDecl | Block ]+ EOF
 FunctionDecl::= "Transaction" Identifier? -> Identifier -> Block
 Block  ::= "<" Block+ ">" | Statement
-Statement ::= [Input | Print | Pay | Assignment] % | If | While
+Statement ::= [Input | Print | Pay | FunctionCall | Assignment] % | If | While
 If     ::= "if" Expr -> Block
 While  ::= "while" Expr -> Block
 Print  ::= "ShowBalance" Expr
@@ -42,7 +42,8 @@ AddPr  ::=MulPr{ ['+''-']  MulPr}*
 MulPr  ::=PowPr{ ['*''/']  PowPr}*
 PowPr  ::=Primary{ '^'  PowPr}?
 
-Primary::= '(' Expr ')' | FuncOper | Identifier(Expr?) | Identifier | Num
+FunctionCall::= Identifier(Expr?)
+Primary::= '(' Expr ')' | FuncOper | FunctionCall | Identifier | Num
 
 FuncOper   ::=["sin" "cos" "tg" "ctg" "ln"]'(' Expr ')'
 Identifier ::=['a'-'z''_']+ ['a'-'z''_''0'-'9']*

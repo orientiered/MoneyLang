@@ -30,6 +30,10 @@ static Node_t *GetWhile(ParseContext_t *context, LangContext_t *frontend);
 
 static Node_t *GetAssignment(ParseContext_t *context, LangContext_t *frontend);
 
+static Node_t *GetFunctionCall(ParseContext_t *context, LangContext_t *frontend);
+// get arguments in format (expr?[,expr]*)
+static Node_t *GetFunctionArgs(ParseContext_t *context, LangContext_t *frontend);
+
 static Node_t *GetInput(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetPrint(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetPay(ParseContext_t *context, LangContext_t *frontend);
@@ -127,10 +131,11 @@ declNode        NULL
     Node_t *args = GetIdentifier(context, frontend);
     if (HARD_ERR)
         return NULL;
+    context->status = PARSE_SUCCESS;
 
     if (!cmpOp(context->pointer, OP_ARROW) )
         SyntaxError(context, frontend, NULL, "Expected -> in function decl\n");
-
+    //transforming -> into OP_FUNC_HEADER
     Node_t *headerNode = &context->pointer->node;
     headerNode->value.op = OP_FUNC_HEADER;
     context->pointer++;
@@ -148,15 +153,11 @@ declNode        NULL
     headerNode->left = funcName;
     funcName->parent = headerNode;
 
-    if (frontend->nameTable.identifiers[funcName->value.id].type == VAR_ID) {
-        SyntaxError(context, frontend, NULL, "Function name is already used as variable");
-    }
-
     frontend->nameTable.identifiers[funcName->value.id].type = FUNC_ID;
-    frontend->nameTable.identifiers[funcName->value.id].argIndex = (args) ? args->value.id : -1;
 
     if (!cmpOp(context->pointer, OP_ARROW))
         SyntaxError(context, frontend, NULL, "Expected -> in function decl\n");
+    //transforming second -> into ; to connect function decl to chain
     Node_t *linker = &context->pointer->node;
     linker->value.op = OP_SEMICOLON;
     context->pointer++;
@@ -179,6 +180,8 @@ static Node_t *GetIf(ParseContext_t *context, LangContext_t *frontend) {
         context->status = SOFT_ERROR;
         return NULL;
     }
+//   if expr     ->      Block
+//  val left semicolon    body
     Node_t *val = &context->pointer->node;
     context->pointer++;
 
@@ -212,6 +215,8 @@ static Node_t *GetWhile(ParseContext_t *context, LangContext_t *frontend) {
         context->status = SOFT_ERROR;
         return NULL;
     }
+// while expr    ->      block
+//  val  left semicolon   body
     Node_t *val = &context->pointer->node;
     context->pointer++;
 
@@ -225,7 +230,7 @@ static Node_t *GetWhile(ParseContext_t *context, LangContext_t *frontend) {
     semicolon->value.op = OP_SEMICOLON;
     context->pointer++;
 
-    Node_t *right = GetBlock(context, frontend);
+    Node_t *body = GetBlock(context, frontend);
     if (!SUCCESS)
         SyntaxError(context, frontend, NULL, "Expected code block after -> in while statement\n");
 
@@ -233,9 +238,9 @@ static Node_t *GetWhile(ParseContext_t *context, LangContext_t *frontend) {
     val->parent = semicolon;
 
     val->left = left;
-    val->right = right;
+    val->right = body;
     left->parent = val;
-    right->parent = val;
+    body->parent = val;
     return semicolon;
 }
 
@@ -291,37 +296,87 @@ static Node_t *GetBlock(ParseContext_t *context, LangContext_t *frontend) {
 
 static Node_t *GetStatementBase(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
-    Node_t *val = GetInput(context, frontend);
-    if (SUCCESS)
-        return val;
-    else if (HARD_ERR)
-        return NULL;
-    else if (SOFT_ERR)
-        context->status = PARSE_SUCCESS;
+    //TODO: make array of functions and loop over them
+    typedef Node_t *(*SyntaxFunc_t)(ParseContext_t *, LangContext_t *);
 
-    val = GetPrint(context, frontend);
-    if (SUCCESS)
-        return val;
-    else if (HARD_ERR)
-        return NULL;
-    else if (SOFT_ERR)
-        context->status = PARSE_SUCCESS;
+    const SyntaxFunc_t Getters[] = {
+        GetInput,
+        GetPrint,
+        GetPay,
+        GetFunctionCall,
+        GetAssignment
+    };
 
-    val = GetPay(context, frontend);
-    if (SUCCESS)
-        return val;
-    else if (HARD_ERR)
-        return NULL;
-    else if (SOFT_ERR)
+    Node_t *val = NULL;
+    for (size_t funcIdx = 0; funcIdx < ARRAY_SIZE(Getters); funcIdx++) {
+        val = Getters[funcIdx](context, frontend);
+        if (SUCCESS)
+            return val;
+        if (HARD_ERR)
+            return NULL;
         context->status = PARSE_SUCCESS;
+    }
+//TODO: move context->status = PARSE_SUCCESS to start of every function
+    context->status = SOFT_ERROR;
+    return NULL;
+}
 
-    val = GetAssignment(context, frontend);
-    if (context->status != PARSE_SUCCESS) {
+static Node_t *GetFunctionArgs(ParseContext_t *context, LangContext_t *frontend) {
+    LOG_ENTRY();
+
+    if (!cmpOp(context->pointer, OP_LBRACKET) ){
+        context->status = SOFT_ERROR;
         return NULL;
     }
 
-    LOG_EXIT();
-    return val;
+    logPrint(L_EXTRA, 0, "Getting arguments of call\n");
+    //transforming ( into OP_COMMA node to link arguments
+    Node_t *comma = &context->pointer->node;
+    comma->value.op = OP_COMMA;
+    context->pointer++;
+
+    Node_t *args = GetExpr(context, frontend);
+    if (HARD_ERR)
+        SyntaxError(context, frontend, NULL, "Expected list of function arguments\n");
+
+    context->status = PARSE_SUCCESS;
+    comma->left = args;
+    if (args) args->parent = comma;
+
+    if (!cmpOp(context->pointer, OP_RBRACKET))
+        SyntaxError(context, frontend, NULL, "Expected ) \n");
+
+    //transfroming ) into OP_CALL node
+    Node_t *callNode = &context->pointer->node;
+    callNode->value.op = OP_CALL;
+    context->pointer++;
+
+    callNode->right = comma;
+    comma->parent = callNode;
+
+    return callNode;
+}
+
+static Node_t *GetFunctionCall(ParseContext_t *context, LangContext_t *frontend) {
+    LOG_ENTRY();
+    //entry token to return it back if it is not function call
+    Token_t *currentToken = context->pointer;
+    Node_t *name = GetIdentifier(context, frontend);
+    if (!SUCCESS)
+        return NULL;
+
+    //return call node with arguments linked to right subtree
+    Node_t *callNode = GetFunctionArgs(context, frontend);
+    if (!SUCCESS) {
+        context->pointer = currentToken;
+        return NULL;
+    }
+
+    //linking name of function to left subtree
+    callNode->left = name;
+    name->parent = callNode;
+//TODO: rework GetPrimary and think about !SUCCESS above this todo
+    return callNode;
 }
 
 static Node_t *GetStatement(ParseContext_t *context, LangContext_t *frontend) {
@@ -423,6 +478,8 @@ static Node_t *GetPay(ParseContext_t *context, LangContext_t *frontend) {
     LOG_EXIT();
     return current;
 }
+
+
 
 static Node_t *GetAssignment(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
@@ -621,7 +678,7 @@ static Node_t *GetPrimary(ParseContext_t *context, LangContext_t *frontend) {
         context->pointer++;
 
         Node_t *val = GetExpr(context, frontend);
-        if (context->status != PARSE_SUCCESS)
+        if (!SUCCESS)
             return NULL;
 
 
@@ -643,6 +700,11 @@ static Node_t *GetPrimary(ParseContext_t *context, LangContext_t *frontend) {
             val = GetFuncOper(context, frontend);
             break;
         case IDENTIFIER:
+            val = GetFunctionCall(context, frontend);
+            if (!SOFT_ERR)
+                break;
+            context->status = PARSE_SUCCESS;
+
             val = GetIdentifier(context, frontend);
             break;
         default:
@@ -654,51 +716,7 @@ static Node_t *GetPrimary(ParseContext_t *context, LangContext_t *frontend) {
     if (SOFT_ERR)
         return val;
 
-    if (val->type == IDENTIFIER) {
-        Identifier_t *id = &frontend->nameTable.identifiers[val->value.id];
-
-        Node_t *nextNode = &context->pointer->node;
-        bool nextIsBracket = nextNode->type == OPERATOR && nextNode->value.op == OP_LBRACKET;
-        logPrint(L_EXTRA, 0, "identifier. next bracket = %d\n", nextIsBracket);
-
-        enum IdentifierType expectedType = nextIsBracket ? FUNC_ID : VAR_ID;
-        if (id->type == UNDEFINED_ID)
-            id->type = expectedType;
-        else if (id->type != expectedType)
-            SyntaxError(context, frontend, NULL, "Wrong identifier type\n");
-
-
-        if (id->type == FUNC_ID) {
-            logPrint(L_EXTRA, 0, "Getting arguments of call\n");
-            Node_t *comma = &context->pointer->node;
-            comma->value.op = OP_COMMA;
-            context->pointer++;
-
-            Node_t *args = GetExpr(context, frontend);
-            if (HARD_ERR) {
-                return NULL;
-            }
-            context->status = PARSE_SUCCESS;
-            comma->left = args;
-            args->parent = comma;
-
-            if (!cmpOp(context->pointer, OP_RBRACKET))
-                SyntaxError(context, frontend, NULL, "Expected ) \n");
-            Node_t *callNode = &context->pointer->node;
-            callNode->value.op = OP_CALL;
-            context->pointer++;
-
-            callNode->left = val;
-            val->parent = callNode;
-
-            callNode->right = comma;
-            comma->parent = callNode;
-
-            val = callNode;
-        }
-    }
-
-    LOG_EXIT();
+        LOG_EXIT();
     return val;
 
 }

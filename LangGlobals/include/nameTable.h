@@ -14,8 +14,6 @@ typedef struct {
     char *str;
     size_t len;
     enum IdentifierType type;
-    int argIndex;
-    // int currentFunction;
 } Identifier_t;
 
 typedef struct {
