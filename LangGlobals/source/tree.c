@@ -114,12 +114,18 @@ static bool recursiveDumpTree(LangContext_t *context, Node_t *node, bool minifie
     switch(node->type) {
         case OPERATOR:
             fillColor = OPERATOR_COLOR;
-            fprintf(dotFile, "TYPE = OPR(%d) | %s | ", node->type, operators[node->value.op].dotStr);
+            fprintf(dotFile, "TYPE = OPR(%d) | %s | ", node->type,
+                operators[node->value.op].dotStr ? operators[node->value.op].dotStr : operators[node->value.op].str);
             break;
         case IDENTIFIER:
-            fillColor = IDENTIFIER_COLOR;
+        {
+            Identifier_t id = getIdFromTable(&context->nameTable, node->value.id);
+            if (id.type == FUNC_ID) fillColor = FUNC_ID_COLOR;
+            if (id.type == VAR_ID) fillColor = VAR_ID_COLOR;
+
             fprintf(dotFile, "TYPE = ID(%d) | %s(%d) | ", node->type, getIdFromTable(&context->nameTable, node->value.id).str, node->value.id);
             break;
+        }
         case NUMBER:
             fillColor = NUMBER_COLOR;
             fprintf(dotFile, "TYPE = NUM(%d) | %lg | ", node->type, node->value.number);

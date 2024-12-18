@@ -14,7 +14,7 @@
 //TODO: rework operator search by finding longest match (identifier if no matches)
 
 static void skipSpaces(const char **str, size_t *line, size_t *col) {
-    logPrint(L_EXTRA, 0, "Skipping comments starting from %10s\n", *str);
+    // logPrint(L_EXTRA, 0, "Skipping comments starting from %10s\n", *str);
 
     bool inComment = false;
     while (1) {
@@ -33,13 +33,14 @@ static void skipSpaces(const char **str, size_t *line, size_t *col) {
 
         (*str)++;
     }
-    logPrint(L_EXTRA, 0, "Skipped comments: %10s\n", *str);
+    // logPrint(L_EXTRA, 0, "Skipped comments: %10s\n", *str);
 }
 
 static size_t readLexemToBuffer(char *buffer, const char **str, size_t *col) {
     size_t len = 0;
     //[a-z_] -> [a-z0-9_]*
     //[any symbol that is not alpha, num, space, COMMENT_START_SYMBOL, ()]+
+    //TODO: rewrite this code, too ambiguous
     if (isalpha(**str) || (**str == '_')) {
         while (isalnum(**str) || **str == '_') {
             *(buffer++) = *((*str)++);
@@ -63,16 +64,34 @@ static size_t readLexemToBuffer(char *buffer, const char **str, size_t *col) {
     return len;
 }
 
-static int findOperator(const char *name) {
-    assert(name);
+/// @brief find longest operator from given position.
+/// @param [out] len Length of found operator
+/// @return idx of operator if found, -1 otherwise
+static int findOperator(const char *text, size_t *len) {
+    assert(text);
+    assert(len);
+
+    int result = -1;
+    size_t longestMatch = 0;
+
     for (unsigned idx = 0; idx < ARRAY_SIZE(operators); idx++) {
-        if (strcmp(operators[idx].str, name) == 0)
-            return idx;
+        size_t operatorLen = strlen(operators[idx].str);
+        if (operatorLen == 0) continue;
+
+        if (strncmp(operators[idx].str, text, operatorLen) == 0)
+            if (operatorLen > longestMatch) {
+                longestMatch = operatorLen;
+                result = idx;
+            }
     }
 
-    return -1;
+    *len = longestMatch;
+    return result;
 }
 
+/// @brief Tokenize text
+/// @param context
+/// @return status
 FrontendStatus_t lexicalAnalysis(LangContext_t *context) {
     assert(context);
 
@@ -112,9 +131,11 @@ FrontendStatus_t lexicalAnalysis(LangContext_t *context) {
     skipSpaces(&curStr, &curLine, &curCol);
     while (*curStr) {
 
+        //filling position of token
         token.line = curLine;
         token.column = curCol;
 
+        // all numbers must start with digit
         if (isdigit(*curStr)) {
             char *nextPosition = NULL;
             double number = strtod(curStr, &nextPosition);
@@ -128,26 +149,27 @@ FrontendStatus_t lexicalAnalysis(LangContext_t *context) {
                 lexerError("Can't parse number\n");
 
         } else {
-
-            char buffer[LEXER_BUFFER_SIZE] = "";
-            size_t lexemLen = readLexemToBuffer(buffer, &curStr, &curCol);
-
-            if (lexemLen == 0)
-                lexerError("Can't read lexem\n");
-
-            logPrint(L_EXTRA, 0, "LEXER: Adding lexem: '%s'\n", buffer);
-            int idx = findOperator(buffer);
+            // trying to find operator
+            size_t lexemLen = 0;
+            int idx = findOperator(curStr, &lexemLen);
             if (idx >= 0) {
-                logPrint(L_EXTRA, 0, "\tAdding operator %d\n", operators[idx].opCode);
+                logPrint(L_EXTRA, 0, "LEXER: Adding operator %d (%s)\n", idx, operators[idx].str);
+                curStr += lexemLen;
+                curCol += lexemLen;
                 token.node.type = OPERATOR;
-                token.node.value.op = operators[idx].opCode;
+                token.node.value.op = (enum OperatorType)idx;
             } else {
-                logPrint(L_EXTRA, 0, "\tInserting identifier\n");
+                char buffer[LEXER_BUFFER_SIZE] = "";
+                lexemLen = readLexemToBuffer(buffer, &curStr, &curCol);
+
+                if (lexemLen == 0)
+                    lexerError("Can't read lexem\n");
+
+                logPrint(L_EXTRA, 0, "LEXER: Adding identifier: '%s'\n", buffer);
                 idx = insertIdentifier(&context->nameTable, buffer);
                 token.node.type = IDENTIFIER;
                 token.node.value.id = idx;
             }
-
         }
 
         nextToken;

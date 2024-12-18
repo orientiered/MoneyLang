@@ -28,7 +28,7 @@ Negative examples = {y, sin(), 5.23 , Invest x+5}
 
 Grammar::= [FunctionDecl | Block ]+ EOF
 FunctionDecl::= "Transaction" Identifier? -> Identifier -> Block
-Block  ::= "<" Statement+ ">" || Statement
+Block  ::= "<" Block+ ">" | Statement
 Statement ::= [Input | Print | Pay | Assignment] % | If | While
 If     ::= "if" Expr -> Block
 While  ::= "while" Expr -> Block

@@ -244,7 +244,7 @@ static Node_t *GetBlock(ParseContext_t *context, LangContext_t *frontend) {
     if (cmpOp(context->pointer, OP_LABRACKET)) {
         context->pointer++;
 
-        Node_t *val = GetStatement(context, frontend);
+        Node_t *val = GetBlock(context, frontend);
         if (!SUCCESS) {
             context->status = HARD_ERROR;
             return NULL;
@@ -253,7 +253,7 @@ static Node_t *GetBlock(ParseContext_t *context, LangContext_t *frontend) {
         Node_t *current = val;
 
         while (1) {
-            Node_t *right = GetStatement(context, frontend);
+            Node_t *right = GetBlock(context, frontend);
             if (SOFT_ERR)
                 break;
             else if (HARD_ERR)
@@ -345,20 +345,16 @@ static Node_t *GetStatement(ParseContext_t *context, LangContext_t *frontend) {
         return val;
     }
 
-    if (SOFT_ERR) {
-        context->status = PARSE_SUCCESS;
-        val = GetIf(context, frontend);
-        if (SUCCESS)
-            return val;
-        if (HARD_ERR)
-            return NULL;
-        else
-            context->status = PARSE_SUCCESS;
+    if (HARD_ERR) return NULL;
+    context->status = PARSE_SUCCESS;
 
-        val = GetWhile(context, frontend);
-        if (SUCCESS)
-            return val;
-    }
+    val = GetIf(context, frontend);
+    if (SUCCESS)  return val;
+    if (HARD_ERR) return NULL;
+    context->status = PARSE_SUCCESS;
+
+    val = GetWhile(context, frontend);
+    if (SUCCESS)  return val;
 
     return NULL;
 }
@@ -653,8 +649,10 @@ static Node_t *GetPrimary(ParseContext_t *context, LangContext_t *frontend) {
             assert(0);
     }
 
-    if (context->status != PARSE_SUCCESS)
+    if (HARD_ERR)
         SyntaxError(context, frontend, val, "GetPrimary: expected (expr), function(), identifier (function call) or Number, got neither\n");
+    if (SOFT_ERR)
+        return val;
 
     if (val->type == IDENTIFIER) {
         Identifier_t *id = &frontend->nameTable.identifiers[val->value.id];
@@ -710,6 +708,10 @@ static Node_t *GetFuncOper(ParseContext_t *context, LangContext_t *frontend) {
     LOG_EXIT();
 
     Node_t *op = &context->pointer->node;
+    if (!operators[op->value.op].isFunction) {
+        context->status = SOFT_ERROR;
+        return NULL;
+    }
 
     context->pointer++;
     // Token_t *lastToken = context->pointer;

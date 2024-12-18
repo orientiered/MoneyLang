@@ -8,7 +8,8 @@
 #define EXPR_TREE_DUMP_IMG_FORMAT "expr_dump_%04zu."
 
 const char * const OPERATOR_COLOR       = "#EDE1CF";
-const char * const IDENTIFIER_COLOR     = "#f3d4de";
+const char * const VAR_ID_COLOR     = "#f3d4de";
+const char * const FUNC_ID_COLOR     = "#24e658";
 const char * const NUMBER_COLOR         = "#107980";
 const char * const DEFAULT_NODE_COLOR   = "#000000";
 const size_t DUMP_BUFFER_SIZE = 128;
@@ -68,43 +69,45 @@ enum OperatorType {
 typedef struct {
     enum OperatorType opCode;
     bool binary;            ///< Has two arguments
+    bool isFunction;        ///< sin(), cos(), ....
     const char *str;        ///< string to search in language
-    const char *dotStr;     ///< string to write in dump
+    const char *dotStr;     ///< string to write in dump. If not specified, str is used
     const char *asmStr;     ///< ~analog in asm code
-    int priority;      ///< Priority of operation (bigger = executes first) (affects only tex)
+    int priority;           ///< Priority of operation (bigger = executes first) (affects only brackets)
 } Operator_t;
 
+//! all operators must be in the same order as in enum
 const Operator_t operators[] = {
-    {.opCode = OP_ADD,  .binary = 1, .str = "+"   , .dotStr = "+",    .asmStr = "ADD", .priority = 0},
-    {.opCode = OP_SUB,  .binary = 1, .str = "-"   , .dotStr = "-",    .asmStr = "SUB", .priority = 0},
-    {.opCode = OP_MUL,  .binary = 1, .str = "*"   , .dotStr = "*",    .asmStr = "MUL", .priority = 1},
-    {.opCode = OP_DIV,  .binary = 1, .str = "/"   , .dotStr = "/",    .asmStr = "DIV", .priority = 1},
-    {.opCode = OP_POW,  .binary = 1, .str = "^"   , .dotStr = "^",    .asmStr = "", .priority = 2},
-    {.opCode = OP_SQRT, .binary = 0, .str = "sqrt", .dotStr = "sqrt", .asmStr = "SQRT", .priority = 3},
-    {.opCode = OP_SIN,  .binary = 0, .str = "sin" , .dotStr = "sin",  .asmStr = "SIN", .priority = 3},
-    {.opCode = OP_COS,  .binary = 0, .str = "cos" , .dotStr = "cos",  .asmStr = "COS", .priority = 3},
-    {.opCode = OP_SINH, .binary = 0, .str = "sh"  , .dotStr = "sh",   .asmStr = "", .priority = 3},
-    {.opCode = OP_COSH, .binary = 0, .str = "ch"  , .dotStr = "ch",   .asmStr = "", .priority = 3},
-    {.opCode = OP_TAN,  .binary = 0, .str = "tg"  , .dotStr = "tg",   .asmStr = "", .priority = 3},
-    {.opCode = OP_CTG,  .binary = 0, .str = "ctg" , .dotStr = "ctg",  .asmStr = "", .priority = 3},
-    {.opCode = OP_LOGN, .binary = 0, .str = "ln"  , .dotStr = "ln",   .asmStr = "", .priority = 3},
+    {.opCode = OP_ADD,  .binary = 1, .str = "+"   , .asmStr = "ADD", .priority = 0},
+    {.opCode = OP_SUB,  .binary = 1, .str = "-"   , .asmStr = "SUB", .priority = 0},
+    {.opCode = OP_MUL,  .binary = 1, .str = "*"   , .asmStr = "MUL", .priority = 1},
+    {.opCode = OP_DIV,  .binary = 1, .str = "/"   , .asmStr = "DIV", .priority = 1},
+    {.opCode = OP_POW,  .binary = 1, .str = "^"   , .asmStr = "", .priority = 2},
+    {.opCode = OP_SQRT, .binary = 0, .isFunction = 1, .str = "sqrt", .asmStr = "SQRT", .priority = 3},
+    {.opCode = OP_SIN,  .binary = 0, .isFunction = 1, .str = "sin" , .asmStr = "SIN", .priority = 3},
+    {.opCode = OP_COS,  .binary = 0, .isFunction = 1, .str = "cos" , .asmStr = "COS", .priority = 3},
+    {.opCode = OP_SINH, .binary = 0, .isFunction = 1, .str = "sh"  , .asmStr = "", .priority = 3},
+    {.opCode = OP_COSH, .binary = 0, .isFunction = 1, .str = "ch"  , .asmStr = "", .priority = 3},
+    {.opCode = OP_TAN,  .binary = 0, .isFunction = 1, .str = "tg"  , .asmStr = "", .priority = 3},
+    {.opCode = OP_CTG,  .binary = 0, .isFunction = 1, .str = "ctg" , .asmStr = "", .priority = 3},
+    {.opCode = OP_LOGN, .binary = 0, .isFunction = 1, .str = "ln"  , .asmStr = "", .priority = 3},
 
-    {.opCode = OP_ASSIGN,    .binary = 2, .str = "=", .dotStr = "=", .priority = -1},
-    {.opCode = OP_IF,        .binary = 0, .str = "if", .dotStr = "if", .priority = -2},
-    {.opCode = OP_WHILE,     .binary = 0, .str = "while", .dotStr = "while", .priority = -2},
-    {.opCode = OP_FUNC_DECL, .binary = 0, .str = "Transaction", .dotStr = "Transaction", .priority = -2},
+    {.opCode = OP_ASSIGN,    .binary = 1, .str = "=",     .priority = -1},
+    {.opCode = OP_IF,        .binary = 0, .str = "if",    .priority = -2},
+    {.opCode = OP_WHILE,     .binary = 0, .str = "while", .priority = -2},
+    {.opCode = OP_FUNC_DECL, .binary = 0, .str = "Transaction", .dotStr = "Function decl", .priority = -2},
     // {.opCode = OP_VAR_DECL,     .binary = 0, .str = "Account"       , .priority = 3},
     {.opCode = OP_IN,       .binary = 0, .str = "Invest",      .dotStr = "In",  .asmStr = "IN",  .priority = 3},
     {.opCode = OP_OUT,      .binary = 0, .str = "ShowBalance", .dotStr = "Out", .asmStr = "OUT", .priority = 3},
 
-    {.opCode = OP_LBRACKET,    .binary = 0, .str = "("  , .dotStr = "(", .priority = 3},
-    {.opCode = OP_RBRACKET,    .binary = 0, .str = ")"  , .dotStr = ")", .priority = 3},
-    {.opCode = OP_LABRACKET,   .binary = 1, .str = "<"  , .dotStr = "&lt", .asmStr = "CALL __LESS\n", .priority = -1},
-    {.opCode = OP_RABRACKET,   .binary = 1, .str = ">"  , .dotStr = "&gt", .asmStr = "CALL __GREATER\n", .priority = -1},
+    {.opCode = OP_LBRACKET,    .binary = 0, .str = "("  , .priority = 3},
+    {.opCode = OP_RBRACKET,    .binary = 0, .str = ")"  , .priority = 3},
+    {.opCode = OP_LABRACKET,   .binary = 1, .str = "<"  , .dotStr = "less",    .asmStr = "CALL __LESS\n", .priority = -1},
+    {.opCode = OP_RABRACKET,   .binary = 1, .str = ">"  , .dotStr = "greater", .asmStr = "CALL __GREATER\n", .priority = -1},
     {.opCode = OP_SEMICOLON,   .binary = 1, .str = "%"  , .dotStr = ";", .priority = -2},
-    {.opCode = OP_ARROW,       .binary = 1, .str = "->" , .dotStr = "->", .priority = 3},
+    {.opCode = OP_ARROW,       .binary = 1, .str = "->" , .priority = 3},
 
-    {.opCode = OP_COMMA,       .binary = 1, .str = "," , .dotStr = ",",   .priority = -2},
+    {.opCode = OP_COMMA,       .binary = 1, .str = "," , .priority = -2},
 
     {.opCode = OP_DOLLAR,      .binary = 0, .str = "$"},
     {.opCode = OP_RUBLE,       .binary = 0, .str = "₽"},
