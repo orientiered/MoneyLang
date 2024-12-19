@@ -12,9 +12,10 @@ enum IdentifierType {
 
 typedef struct {
     char *str;
-    size_t len;
     enum IdentifierType type;
+    bool local;
     size_t argsCount;
+    size_t address;
 } Identifier_t;
 
 typedef struct {

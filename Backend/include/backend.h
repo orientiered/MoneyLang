@@ -25,6 +25,7 @@ typedef enum BackendStatus_t {
     BACKEND_FILE_ERROR,
     BACKEND_WRITE_ERROR,
     BACKEND_TYPE_ERROR,
+    BACKEND_SCOPE_ERROR,
 } BackendStatus_t;
 
 /// @brief Initialize frontend context

@@ -53,7 +53,7 @@ int insertIdentifier(NameTable_t *table, const char *idName) {
         return NULL_IDENTIFIER;
 
     table->identifiers[table->size].str = idStr;
-    table->identifiers[table->size].len = idLen;
+    // table->identifiers[table->size].len = idLen;
     table->identifiers[table->size].type = UNDEFINED_ID;
     strcpy(idStr, idName);
 

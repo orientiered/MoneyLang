@@ -16,6 +16,7 @@ static void setIdType(LangContext_t *frontend, Node_t *node, enum IdentifierType
     assert(frontend);
     assert(node);
     assert(node->type == IDENTIFIER);
+    logPrint(L_EXTRA, 0, "Setting type of id %d: %d\n", node->value.id, type);
     frontend->nameTable.identifiers[node->value.id].type = type;
 }
 

@@ -1,5 +1,6 @@
 #include "stdio.h"
 #include "stdlib.h"
+#include "stdbool.h"
 #include "assert.h"
 #include "string.h"
 
@@ -79,24 +80,106 @@ BackendStatus_t BackendRun(Backend_t *context) {
 static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, Node_t *node);
 
 
-static BackendStatus_t translateArguments(Backend_t *context, FILE *file, Node_t *node) {
+static BackendStatus_t translateCallArguments(Backend_t *context, FILE *file, Node_t *node) {
+    fprintf(file, "; Pushing function arguments\n");
+    size_t argIdx = 0;
+    while (node) {
+        Node_t *argNode = (node->type == OPERATOR && node->value.op == OP_COMMA) ?
+                                node->left :
+                                node;
+
+        RET_ON_ERROR(translateToAsmRecursive(context, file, argNode));
+        if (context->inFunction)
+            //popping arguments after the end of current frame
+            fprintf(file, "POP [rbx + %d] \n", context->localVars + argIdx);
+        else
+            fprintf(file, "POP [%d] ; global scope\n", context->globalVars + argIdx);
+        argIdx++;
+        node = node->right;
+    }
+
     return BACKEND_SUCCESS;
 }
 
+static BackendStatus_t translateCall(Backend_t *context, FILE *file, Node_t *node) {
+    assert(context);
+    assert(file);
+    assert(node);
+    assert(node->value.op == OP_CALL);
+
+    Identifier_t func = getIdFromTable(&context->nameTable, node->left->value.id);
+    if (func.type != FUNC_ID)
+        SyntaxError(context, BACKEND_TYPE_ERROR, "Try to use variable %s as a function\n", func.str);
+    //TODO: arguments count check
+    if (node->right)
+        RET_ON_ERROR(translateCallArguments(context, file, node->right));
+
+    size_t rbxShift = (context->inFunction) ? context->localVars : context->globalVars;
+    fprintf(file,
+                "PUSH rbx ; storing current base pointer \n"
+                "PUSH rbx + %d ; \n"
+                "POP  rbx ; new rbx\n", rbxShift);
+
+    fprintf(file, "CALL %s\n", func.str);
+
+    fprintf(file, "POP  rbx ; restoring rbx\n");
+
+    fprintf(file, "PUSH rax\n");
+    return BACKEND_SUCCESS;
+}
 static BackendStatus_t translateFuncDecl(Backend_t *context, FILE *file, Node_t *node) {
     assert(context);
     assert(file);
     assert(node);
     assert(node->value.op == OP_FUNC_DECL);
 
+    context->inFunction = true;
+    context->localVars = 0;
+
     const char *funcName = getIdFromTable(&context->nameTable, node->left->left->value.id).str;
     fprintf(file, "#----Translating function %s-------#\n", funcName);
     fprintf(file, "JMP DECL_END_%s\n", funcName);
     fprintf(file, "%s:\n", funcName);
+
+    //counting arguments
+    Node_t *arg = node->left->right;
+    while (arg) {
+        size_t argIdx = (arg->type == OPERATOR) ? arg->left->value.id : arg->value.id;
+        Identifier_t *id = context->nameTable.identifiers + argIdx;
+        logPrint(L_EXTRA, 0, "Argument %p in function %s: %d %s\n", arg, funcName, argIdx, id->str);
+        //writing relative address of argument variable
+        id->address = context->localVars;
+        id->local   = true;
+        context->localVars++;
+        arg = arg->right;
+    }
+
     RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
 
     fprintf(file, "\nDECL_END_%s:\n", funcName);
     fprintf(file, "#----End of function %s------------#\n", funcName);
+
+    context->inFunction = false;
+    return BACKEND_SUCCESS;
+}
+
+static BackendStatus_t translateVariable(Backend_t *context, FILE *file, Node_t *node) {
+    Identifier_t id = getIdFromTable(&context->nameTable, node->value.id);
+    if (id.type == UNDEFINED_ID)
+        SyntaxError(context, BACKEND_TYPE_ERROR, "Identifier %s wasn't declared\n", id.str);
+    if (id.type == FUNC_ID)
+        SyntaxError(context, BACKEND_TYPE_ERROR, "Identifier %s is function name\n", id.str);
+
+    logPrint(L_EXTRA, 0, "Translating id %d %s\n", node->value.id, id.str);
+    if (!id.local) {
+        logPrint(L_EXTRA, 0, "\tGlobal id\n");
+        fprintf(file, "[%d]       ; %s\n", id.address, id.str);
+    } else {
+        logPrint(L_EXTRA, 0, "\tLocal id\n");
+        if (!context->inFunction)
+            SyntaxError(context, BACKEND_SCOPE_ERROR, "Try to use local variable in global scope\n");
+        fprintf(file, "[rbx + %d] ; local %s\n", id.address, id.str);
+    }
     return BACKEND_SUCCESS;
 }
 
@@ -115,8 +198,8 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
     }
 
     if (node->type == IDENTIFIER) {
-        fprintf(file, "PUSH [%d] ; %s\n", node->value.id,
-                getIdFromTable(&context->nameTable, node->value.id).str);
+        fprintf(file, "PUSH ");
+        RET_ON_ERROR(translateVariable(context, file, node));
         return BACKEND_SUCCESS;
     }
 
@@ -132,20 +215,28 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
             RET_ON_ERROR(translateFuncDecl(context, file, node));
             break;
         case OP_CALL:
+            RET_ON_ERROR(translateCall(context, file, node));
+            break;
+        case OP_VAR_DECL:
         {
-            Identifier_t func = getIdFromTable(&context->nameTable, node->left->value.id);
-            if (func.type != FUNC_ID)
-                SyntaxError(context, BACKEND_TYPE_ERROR, "Try to use variable %s as a function\n", func.str);
-            //TODO: arguments count check
-            if (node->right)
-                RET_ON_ERROR(translateArguments(context, file, node->right));
-            fprintf(file, "CALL %s\n", func.str);
-            fprintf(file, "PUSH RAX\n");
+            Identifier_t *id = context->nameTable.identifiers + node->left->value.id;
+            fprintf(file, "; Declaring variable %s\n", id->str);
+            if (context->inFunction) {
+                id->local = true;
+                id->address = context->localVars;
+                context->localVars++;
+                fprintf(file, "; locals = %d\n", context->localVars);
+            } else {
+                id->local = false;
+                id->address = context->globalVars;
+                context->globalVars++;
+                fprintf(file, "; globals = %d\n", context->globalVars);
+            }
             break;
         }
         case OP_RET:
             RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
-            fprintf(file, "POP RAX ; Storing result value\n");
+            fprintf(file, "POP rax ; Storing result value\n");
             fprintf(file, "RET\n");
             break;
         case OP_IF:
@@ -188,20 +279,20 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
             break;
         case OP_IN:
             fprintf(file, "IN\n");
-            fprintf(file, "POP [%d] ; %s\n",  node->left->value.id,
-                getIdFromTable(&context->nameTable, node->left->value.id).str);
+            fprintf(file, "POP ");
+            RET_ON_ERROR(translateVariable(context, file, node->left));
             break;
-        case OP_OUT: case OP_SIN: case OP_COS:
-            translateToAsmRecursive(context, file, node->left);
+        case OP_OUT: case OP_SIN: case OP_COS: case OP_SQRT:
+            RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
             fprintf(file, "%s\n", operators[node->value.op].asmStr);
             break;
         case OP_ASSIGN:
-            translateToAsmRecursive(context, file, node->right);
-            fprintf(file, "POP [%d] ; %s\n",  node->left->value.id,
-                getIdFromTable(&context->nameTable, node->left->value.id).str);
+            RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
+            fprintf(file, "POP ");
+            RET_ON_ERROR(translateVariable(context, file, node->left));
             break;
         default:
-            logPrint(L_ZERO, 1, "Operator %d isn't supported yet\n", node->value.op);
+            logPrint(L_ZERO, 1, "Backend: Operator %d (%s) isn't supported yet\n", node->value.op, operators[node->value.op].dotStr);
             exit(1);
     }
 
@@ -220,10 +311,10 @@ BackendStatus_t translateToAsm(Backend_t *context) {
     }
 
     fprintf(file, "; Autogenerated\n");
-    fprintf(file, "PUSH 0; zeroing RBX\n");
-    fprintf(file, "POP RBX\n");
+    fprintf(file, "PUSH 0; zeroing rbx\n");
+    fprintf(file, "POP rbx\n");
 
-    translateToAsmRecursive(context, file, context->tree);
+    RET_ON_ERROR(translateToAsmRecursive(context, file, context->tree));
     fprintf(file, "HLT\n\n");
     fprintf(file,
     "__LESS:\n"

@@ -58,7 +58,12 @@ int main(int argc, const char *argv[]) {
     if (namesLen == 0) namesLen = DEFAULT_NAMES_LEN;
 
     LangContext_t context = {0};
-    FrontendInit(&context, inputFileName, outputFileName, maxTokens, nameTableSize, namesLen, mode);
+    FrontendStatus_t status = FrontendInit(&context, inputFileName, outputFileName, maxTokens, nameTableSize, namesLen, mode);
+
+    if (status != FRONTEND_SUCCESS) {
+        FrontendDelete(&context);
+        return 1;
+    }
 
     frontendRun(&context);
 

@@ -28,6 +28,8 @@ FrontendStatus_t FrontendInit(LangContext_t *context, const char *inputFileName,
     }
 
     context->text = readFileToStr(inputFileName);
+    if (!context->text)
+        return FRONTEND_FILE_ERROR;
 
     logPrint(L_EXTRA, 0, "Initialized frontend\n");
     return FRONTEND_SUCCESS;

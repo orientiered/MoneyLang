@@ -125,7 +125,7 @@ static bool recursiveDumpTree(LangContext_t *context, Node_t *node, bool minifie
             if (id.type == FUNC_ID) fillColor = FUNC_ID_COLOR;
             if (id.type == VAR_ID) fillColor = VAR_ID_COLOR;
 
-            fprintf(dotFile, "TYPE = ID(%d) | %s(%d) | ", node->type, getIdFromTable(&context->nameTable, node->value.id).str, node->value.id);
+            fprintf(dotFile, "TYPE = ID(%d) | %s(%d) | ", node->type, id.str, node->value.id);
             break;
         }
         case NUMBER:
