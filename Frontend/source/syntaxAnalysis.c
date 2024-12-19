@@ -11,6 +11,21 @@
 #include "frontend.h"
 #include "langProcessing.h"
 
+
+static void setIdType(LangContext_t *frontend, Node_t *node, enum IdentifierType type) {
+    assert(frontend);
+    assert(node);
+    assert(node->type == IDENTIFIER);
+    frontend->nameTable.identifiers[node->value.id].type = type;
+}
+
+static void setArgsCount(LangContext_t *frontend, Node_t *node, size_t argsCount) {
+    assert(frontend);
+    assert(node);
+    assert(node->type == IDENTIFIER);
+    frontend->nameTable.identifiers[node->value.id].argsCount = argsCount;
+}
+
 static Node_t *GetGrammar(ParseContext_t *context, LangContext_t *frontend);
 
 FrontendStatus_t syntaxAnalysis(LangContext_t *frontend) {
@@ -32,11 +47,13 @@ static Node_t *GetAssignment(ParseContext_t *context, LangContext_t *frontend);
 
 static Node_t *GetFunctionCall(ParseContext_t *context, LangContext_t *frontend);
 // get arguments in format (expr?[,expr]*)
+static Node_t *GetIdOrExprChain(ParseContext_t *context, LangContext_t *frontend, bool expr, size_t *argsCount);
 static Node_t *GetFunctionArgs(ParseContext_t *context, LangContext_t *frontend);
 
 static Node_t *GetInput(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetPrint(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetReturn(ParseContext_t *context, LangContext_t *frontend);
+static Node_t *GetVarDecl(ParseContext_t *context, LangContext_t *frontend);
 
 static Node_t *GetExpr(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetAddPr(ParseContext_t *context, LangContext_t *frontend);
@@ -67,6 +84,8 @@ static bool cmpOp(const Token_t *token, enum OperatorType op) {
 }
 
 static Node_t *GetGrammar(ParseContext_t *context, LangContext_t *frontend) {
+    context->status = PARSE_SUCCESS;
+
     Node_t *val = NULL;         // value that will be returned
     Node_t *current = NULL;     // current operator
     while (1) {
@@ -74,7 +93,6 @@ static Node_t *GetGrammar(ParseContext_t *context, LangContext_t *frontend) {
         if (HARD_ERR)
             return NULL;
         else if (SOFT_ERR) {
-            context->status = PARSE_SUCCESS;
             right = GetBlock(context, frontend);
 
             if (HARD_ERR)
@@ -111,6 +129,8 @@ static Node_t *GetFunctionDecl(ParseContext_t *context, LangContext_t *frontend)
     assert(context);
     assert(frontend);
     LOG_ENTRY();
+
+    context->status = PARSE_SUCCESS;
 /* Transaction  x      ->         sqr       ->        Pay x * x %
     declNode  args  headerNode  funcName  linker(;)    body
 
@@ -119,7 +139,6 @@ linker is used to connect declNode the same way as other statements:
 declNode        NULL
 
 */
-
     if (!cmpOp(context->pointer, OP_FUNC_DECL)) {
         context->status = SOFT_ERROR;
         return NULL;
@@ -127,11 +146,10 @@ declNode        NULL
     Node_t *declNode = &context->pointer->node;
     context->pointer++;
 
-    //TODO : multiple args
-    Node_t *args = GetIdentifier(context, frontend);
+    size_t argsCount = 0;
+    Node_t *args = GetIdOrExprChain(context, frontend, 0, &argsCount);
     if (HARD_ERR)
         return NULL;
-    context->status = PARSE_SUCCESS;
 
     if (!cmpOp(context->pointer, OP_ARROW) )
         SyntaxError(context, frontend, NULL, "Expected -> in function decl\n");
@@ -153,13 +171,14 @@ declNode        NULL
     headerNode->left = funcName;
     funcName->parent = headerNode;
 
-    frontend->nameTable.identifiers[funcName->value.id].type = FUNC_ID;
+    setIdType(frontend, funcName, FUNC_ID);
+    setArgsCount(frontend, funcName, argsCount);
 
     if (!cmpOp(context->pointer, OP_ARROW))
         SyntaxError(context, frontend, NULL, "Expected -> in function decl\n");
     //transforming second -> into ; to connect function decl to chain
     Node_t *linker = &context->pointer->node;
-    linker->value.op = OP_SEMICOLON;
+    linker->value.op = OP_SEP;
     context->pointer++;
 
     Node_t *body = GetBlock(context, frontend);
@@ -176,6 +195,8 @@ declNode        NULL
 
 static Node_t *GetIf(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
+    context->status = PARSE_SUCCESS;
+
     if (!cmpOp(context->pointer, OP_IF)) {
         context->status = SOFT_ERROR;
         return NULL;
@@ -192,7 +213,7 @@ static Node_t *GetIf(ParseContext_t *context, LangContext_t *frontend) {
     if (!cmpOp(context->pointer, OP_ARROW))
         SyntaxError(context, frontend, NULL, "Expected -> in if statement\n");
     Node_t *semicolon = &context->pointer->node;
-    semicolon->value.op = OP_SEMICOLON;
+    semicolon->value.op = OP_SEP;
     context->pointer++;
 
     Node_t *right = GetBlock(context, frontend);
@@ -211,6 +232,8 @@ static Node_t *GetIf(ParseContext_t *context, LangContext_t *frontend) {
 
 static Node_t *GetWhile(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
+    context->status = PARSE_SUCCESS;
+
     if (!cmpOp(context->pointer, OP_WHILE)) {
         context->status = SOFT_ERROR;
         return NULL;
@@ -227,7 +250,7 @@ static Node_t *GetWhile(ParseContext_t *context, LangContext_t *frontend) {
     if (!cmpOp(context->pointer, OP_ARROW))
         SyntaxError(context, frontend, NULL, "Expected -> in while statement\n");
     Node_t *semicolon = &context->pointer->node;
-    semicolon->value.op = OP_SEMICOLON;
+    semicolon->value.op = OP_SEP;
     context->pointer++;
 
     Node_t *body = GetBlock(context, frontend);
@@ -246,6 +269,8 @@ static Node_t *GetWhile(ParseContext_t *context, LangContext_t *frontend) {
 
 static Node_t *GetBlock(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
+    context->status = PARSE_SUCCESS;
+
     if (cmpOp(context->pointer, OP_LABRACKET)) {
         context->pointer++;
 
@@ -274,13 +299,7 @@ static Node_t *GetBlock(ParseContext_t *context, LangContext_t *frontend) {
         if (!cmpOp(context->pointer, OP_RABRACKET)) {
             SyntaxError(context, frontend, NULL, "Expected '>'\n");
         }
-        Node_t *linker = &context->pointer->node;
         context->pointer++;
-        linker->value.op = OP_SEMICOLON;
-        linker->left = val;
-        val->parent = linker;
-
-        val = linker;
         LOG_EXIT();
         // DUMP_TREE(frontend, val, 0);
         return val;
@@ -302,6 +321,7 @@ static Node_t *GetStatementBase(ParseContext_t *context, LangContext_t *frontend
         GetInput,
         GetPrint,
         GetReturn,
+        GetVarDecl,
         GetFunctionCall,
         GetAssignment
     };
@@ -320,42 +340,6 @@ static Node_t *GetStatementBase(ParseContext_t *context, LangContext_t *frontend
     return NULL;
 }
 
-static Node_t *GetFunctionArgs(ParseContext_t *context, LangContext_t *frontend) {
-    LOG_ENTRY();
-
-    if (!cmpOp(context->pointer, OP_LBRACKET) ){
-        context->status = SOFT_ERROR;
-        return NULL;
-    }
-
-    logPrint(L_EXTRA, 0, "Getting arguments of call\n");
-    //transforming ( into OP_COMMA node to link arguments
-    Node_t *comma = &context->pointer->node;
-    comma->value.op = OP_COMMA;
-    context->pointer++;
-
-    Node_t *args = GetExpr(context, frontend);
-    if (HARD_ERR)
-        SyntaxError(context, frontend, NULL, "Expected list of function arguments\n");
-
-    context->status = PARSE_SUCCESS;
-    comma->left = args;
-    if (args) args->parent = comma;
-
-    if (!cmpOp(context->pointer, OP_RBRACKET))
-        SyntaxError(context, frontend, NULL, "Expected ) \n");
-
-    //transfroming ) into OP_CALL node
-    Node_t *callNode = &context->pointer->node;
-    callNode->value.op = OP_CALL;
-    context->pointer++;
-
-    callNode->right = comma;
-    comma->parent = callNode;
-
-    return callNode;
-}
-
 static Node_t *GetFunctionCall(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
     //entry token to return it back if it is not function call
@@ -365,16 +349,28 @@ static Node_t *GetFunctionCall(ParseContext_t *context, LangContext_t *frontend)
         return NULL;
 
     //return call node with arguments linked to right subtree
-    Node_t *callNode = GetFunctionArgs(context, frontend);
-    if (!SUCCESS) {
+    if (!cmpOp(context->pointer, OP_LBRACKET) ) {
         context->pointer = currentToken;
+        context->status = SOFT_ERROR;
         return NULL;
     }
+    context->pointer++;
 
+    size_t argsCount = 0;
+    Node_t *args = GetIdOrExprChain(context, frontend, true, &argsCount);
+    if (!SUCCESS)
+        return NULL;
+
+    if (!cmpOp(context->pointer, OP_RBRACKET) )
+        SyntaxError(context, frontend, NULL, "Expected )\n");
+    Node_t *callNode = &context->pointer->node;
+    context->pointer++;
     //linking name of function to left subtree
+    callNode->value.op = OP_CALL;
     callNode->left = name;
     name->parent = callNode;
-//TODO: rework GetPrimary and think about !SUCCESS above this todo
+    callNode->right = args;
+    if (args) args->parent = callNode;
     return callNode;
 }
 
@@ -384,7 +380,7 @@ static Node_t *GetStatement(ParseContext_t *context, LangContext_t *frontend) {
     DUMP_TREE(frontend, val, 0);
 
     if (SUCCESS) {
-        if (!cmpOp(context->pointer, OP_SEMICOLON))
+        if (!cmpOp(context->pointer, OP_SEP))
             SyntaxError(context, frontend, NULL, "Expected %%\n");
 
         Node_t *op = &context->pointer->node;
@@ -475,6 +471,28 @@ static Node_t *GetReturn(ParseContext_t *context, LangContext_t *frontend) {
     return retNode;
 }
 
+static Node_t *GetVarDecl(ParseContext_t *context, LangContext_t *frontend) {
+    LOG_ENTRY();
+    context->status = PARSE_SUCCESS;
+
+    if (!cmpOp(context->pointer, OP_VAR_DECL) ) {
+        context->status = SOFT_ERROR;
+        return NULL;
+    }
+    Node_t *declNode = &context->pointer->node;
+    context->pointer++;
+
+    Node_t *id = GetIdentifier(context, frontend);
+    if (!SUCCESS)
+        SyntaxError(context, frontend, NULL, "GetVarDecl: Expected identifier\n");
+
+    declNode->left = id;
+    id->parent = declNode;
+
+    setIdType(frontend, id, VAR_ID);
+
+    return declNode;
+}
 
 
 static Node_t *GetAssignment(ParseContext_t *context, LangContext_t *frontend) {
@@ -634,40 +652,71 @@ static Node_t *GetPowPr(ParseContext_t *context, LangContext_t *frontend) {
 }
 
 // if expr == false, looks for chain of identifiers
-// static Node_t *GetArgsChain(ParseContext_t *context, LangContext_t *frontend, bool expr) {
-//     LOG_ENTRY();
-//
-//     if (!cmpOp(context->pointer, OP_LBRACKET)) {
-//          SyntaxError(context, frontend, NULL, "Expected (\n");
-//     }
-//     Node_t *chain = &context->pointer->node;
-//     context->pointer++;
-//
-//     Node_t *(*getter)(ParseContext_t *context, LangContext_t *frontend) =
-//         expr ? GetExpr : GetIdentifier;
-//
-//     Node_t *val = NULL;
-//     Node_t *left = getter(context, frontend);
-//     if (HARD_ERR) {
-//         return NULL;
-//     } else if (SOFT_ERR) {
-//         context->status = PARSE_SUCCESS;
-//         return left;
-//     }
-//
-//     while (1) {
-//         if (!cmpOp(context->pointer, OP_COMMA))
-//             break;
-//         Node_t *comma = &context->pointer->node;
-//         comma->left = left;
-//         left->parent = comma;
-//
-//
-//     }
-//     Node_t *current = NULL;
-//
-//     return val;
-// }
+static Node_t *GetIdOrExprChain(ParseContext_t *context, LangContext_t *frontend, bool expr, size_t *argsCount) {
+    LOG_ENTRY();
+
+    Node_t *(*getter)(ParseContext_t *context, LangContext_t *frontend) =
+        expr ? GetExpr : GetIdentifier;
+
+    Node_t *val = NULL; //top ,
+    Node_t *left = getter(context, frontend); // id
+    Node_t *current = NULL; // current ,
+    *argsCount = 0;
+    if (HARD_ERR) {
+        return NULL;
+    } else if (SOFT_ERR) {
+        context->status = PARSE_SUCCESS;
+        return left;
+    }
+
+    (*argsCount)++;
+    if (!expr) setIdType(frontend, left, VAR_ID);
+
+    //one element in chain:
+    if (!cmpOp(context->pointer, OP_COMMA) ) {
+        return left;
+    }
+
+    //more elements
+    while (1) {
+        if (!cmpOp(context->pointer, OP_COMMA))
+            break;
+        Node_t *comma = &context->pointer->node;
+        context->pointer++;
+
+        Node_t *right = getter(context, frontend);
+        if (!SUCCESS)
+            SyntaxError(context, frontend, NULL, "Expected expr or id after ,\n");
+
+/*
+        ,  <--current        ,
+    a     b     -->     a       , <-- comma, new current
+                            b      c <--right
+*/
+        (*argsCount)++;
+        setIdType(frontend, right, VAR_ID);
+        //first iteration, when val and current = NULL
+        if (!val) {
+            val = comma;
+            current = comma;
+            current->left = left;
+            left->parent = current;
+            current->right = right;
+            right->parent = current;
+            continue;
+        }
+
+        comma->left = current->right;
+        comma->right = right;
+        current->right = comma;
+        comma->parent = current;
+
+        current = comma;
+
+    }
+
+    return val;
+}
 
 static Node_t *GetPrimary(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();

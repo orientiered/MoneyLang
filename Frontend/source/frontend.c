@@ -45,6 +45,7 @@ FrontendStatus_t FrontendDelete(LangContext_t *context) {
     return FRONTEND_SUCCESS;
 }
 
+/*=========================Reverse frontend====================================*/
 static bool needBrackets(Node_t *node) {
     assert(node);
     if (!node->parent)
@@ -58,7 +59,8 @@ static bool needBrackets(Node_t *node) {
 
     if (node->type == OPERATOR) {
         if (!operators[node->value.op].binary)
-            return !(node->value.op == OP_IN || node->value.op == OP_OUT || node->value.op == OP_RET);
+            return !(node->value.op == OP_IN  || node->value.op == OP_OUT ||
+                     node->value.op == OP_RET || node->value.op == OP_VAR_DECL);
 
         int currentPriority = operators[node->value.op].priority;
         int parentPriority  = operators[node->parent->value.op].priority;
@@ -72,25 +74,30 @@ static void printTabs(FILE *file, unsigned tabs) {
     for (unsigned i = 0; i < tabs; i++) fputc('\t', file);
 }
 
+/// @brief Write scope in if, while, function declaration, etc.
+static void writeScope(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs);
+
+/// @brief Write sequence of operators that end with ;
+static void writeSemicolon(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs);
+
 static void writeAsProgramRecursive(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs);
 
 static void writeIfWhileStatement(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
     assert(node->type == OPERATOR);
     assert(node->value.op == OP_IF || node->value.op == OP_WHILE);
 
-    printTabs(file, tabs);
+    // printTabs(file, tabs);
     fprintf(file, "%s ", operators[node->value.op].str);
     writeAsProgramRecursive(context, file, node->left, tabs);
     fprintf(file, " %s \n", operators[OP_ARROW].str);
-    printTabs(file, tabs);
-    writeAsProgramRecursive(context, file, node->right, tabs+1);
+    writeScope(context, file, node->right, tabs+1);
 }
 
 static void writeFunctionDecl(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
     assert(node->type == OPERATOR);
     assert(node->value.op == OP_FUNC_DECL);
 
-    printTabs(file, tabs);
+    // printTabs(file, tabs);
     //transaction args
     fprintf(file, "%s ", operators[OP_FUNC_DECL].str);
     writeAsProgramRecursive(context, file, node->left->right, tabs);
@@ -100,8 +107,7 @@ static void writeFunctionDecl(LangContext_t *context, FILE *file, Node_t *node, 
     // -> \n
     fprintf(file, " %s \n", operators[OP_ARROW].str);
     // body
-    printTabs(file, tabs);
-    writeAsProgramRecursive(context, file, node->right, tabs+1);
+    writeScope(context, file, node->right, tabs+1);
 }
 
 static void writeCall(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
@@ -126,25 +132,36 @@ static void writeComma(LangContext_t *context, FILE *file, Node_t *node, unsigne
     }
 }
 
-static void writeSemicolon(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
-    assert(node->value.op == OP_SEMICOLON);
+static void writeScope(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
+    assert(node->type == OPERATOR);
+    assert(node->value.op == OP_SEP);
 
-    bool block = node->left->value.op == OP_SEMICOLON;
-    printTabs(file, tabs);
+    bool block = (node->right != NULL);
+
     if (block) {
+        printTabs(file, tabs-1);
         fprintf(file, "<\n");
     }
-    writeAsProgramRecursive(context, file, node->left, tabs + block);
+
+    writeSemicolon(context, file, node, tabs);
+
     if (block) {
-        printTabs(file, tabs);
-        fprintf(file, ">");
+        printTabs(file, tabs-1);
+        fprintf(file, ">\n");
     }
+}
+
+static void writeSemicolon(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {
+    assert(node->value.op == OP_SEP);
+
+    printTabs(file, tabs);
+    writeAsProgramRecursive(context, file, node->left, tabs);
 
     //TODO: get array of specific operators
     //! easy to forgot to add operator here
     if (node->left->value.op != OP_IF && node->left->value.op != OP_WHILE &&
-        node->left->value.op != OP_FUNC_DECL && node->left->value.op != OP_SEMICOLON)
-        fprintf(file, " %s", operators[OP_SEMICOLON].str);
+        node->left->value.op != OP_FUNC_DECL && node->left->value.op != OP_SEP)
+        fprintf(file, " %s", operators[OP_SEP].str);
     fprintf(file, "\n");
 
     writeAsProgramRecursive(context, file, node->right, tabs);
@@ -170,7 +187,7 @@ static void writeAsProgramRecursive(LangContext_t *context, FILE *file, Node_t *
     } else if (node->value.op == OP_CALL) {
         writeCall(context, file, node, tabs);
         return;
-    } else if (node->value.op == OP_SEMICOLON) {
+    } else if (node->value.op == OP_SEP) {
         writeSemicolon(context, file, node, tabs);
         return;
     } else if (node->value.op == OP_COMMA) {

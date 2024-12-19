@@ -81,6 +81,7 @@ Identifier_t getIdFromTable(NameTable_t *table, size_t idx) {
 NameTableStatus_t NameTableWrite(NameTable_t *table, FILE *file) {
     fprintf(file, "NAMETABLE\nsize:%d {\n", table->size);
     for (size_t idx = 0; idx < table->size; idx++) {
+        // const char *type =
         fprintf(file, "\t\"%s\" %d\n", table->identifiers[idx].str, table->identifiers[idx].type);
     }
     fprintf(file, "}\n");

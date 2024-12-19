@@ -27,22 +27,28 @@ Invest x if y %}
 Negative examples = {y, sin(), 5.23 , Invest x+5}
 
 Grammar::= [FunctionDecl | Block ]+ EOF
-FunctionDecl::= "Transaction" Identifier? -> Identifier -> Block
+FunctionDecl::= "Transaction" IdChain '->' Identifier '->' Block
 Block  ::= "<" Block+ ">" | Statement
-Statement ::= [Input | Print | Pay | FunctionCall | Assignment] % | If | While
+Statement ::= [Input | Print | Pay | VarDecl | FunctionCall | Assignment] % | If | While
 If     ::= "if" Expr -> Block
 While  ::= "while" Expr -> Block
 Print  ::= "ShowBalance" Expr
 Pay    ::= "Pay Expr
 Input  ::= "Invest" Identifier
-Assignment ::=  Identifier '=' Expr
+VarDecl ::= "Account" Identifier
+Assignment ::= Identifier '=' Expr
 
 Expr   ::=AddPr{ ['>''<'] AddPr}*
 AddPr  ::=MulPr{ ['+''-']  MulPr}*
 MulPr  ::=PowPr{ ['*''/']  PowPr}*
 PowPr  ::=Primary{ '^'  PowPr}?
 
-FunctionCall::= Identifier(Expr?)
+
+//NOTE: IdChain and ExprChain are represented with GetIdOrExprChain
+IdChain   ::= Identifier?[,Identifier]*
+ExprChain ::= Expr?[,Expr]*
+
+FunctionCall::= Identifier'('ExprChain')'
 Primary::= '(' Expr ')' | FuncOper | FunctionCall | Identifier | Num
 
 FuncOper   ::=["sin" "cos" "tg" "ctg" "ln"]'(' Expr ')'

@@ -11,7 +11,6 @@
 #include "nameTable.h"
 #include "frontend.h"
 
-
 static void skipSpaces(const char **str, size_t *line, size_t *col) {
     // logPrint(L_EXTRA, 0, "Skipping comments starting from %10s\n", *str);
 
@@ -74,9 +73,8 @@ static int findOperator(const char *text, size_t *len) {
     size_t longestMatch = 0;
 
     for (unsigned idx = 0; idx < ARRAY_SIZE(operators); idx++) {
+        if (operators[idx].str == NULL) continue;
         size_t operatorLen = strlen(operators[idx].str);
-        if (operatorLen == 0) continue;
-
         if (strncmp(operators[idx].str, text, operatorLen) == 0)
             if (operatorLen > longestMatch) {
                 longestMatch = operatorLen;
@@ -166,7 +164,6 @@ FrontendStatus_t lexicalAnalysis(LangContext_t *context) {
 
                 logPrint(L_EXTRA, 0, "LEXER: Adding identifier: '%s'\n", buffer);
                 idx = insertIdentifier(&context->nameTable, buffer);
-                context->nameTable.identifiers[idx].type = VAR_ID;
                 token.node.type = IDENTIFIER;
                 token.node.value.id = idx;
             }

@@ -114,7 +114,7 @@ static bool recursiveDumpTree(LangContext_t *context, Node_t *node, bool minifie
     switch(node->type) {
         case OPERATOR:
             fillColor = OPERATOR_COLOR;
-            if (node->value.op == OP_SEMICOLON || node->value.op == OP_COMMA)
+            if (node->value.op == OP_SEP || node->value.op == OP_COMMA)
                 fillColor = SEP_COLOR;
             fprintf(dotFile, "TYPE = OPR(%d) | %s | ", node->type,
                 operators[node->value.op].dotStr ? operators[node->value.op].dotStr : operators[node->value.op].str);

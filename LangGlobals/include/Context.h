@@ -28,43 +28,43 @@ enum ElemType {
 enum OperatorType {
 //mathematical operators
     OP_ADD = 0,    ///< +
-    OP_SUB = 1,        ///< -
-    OP_MUL = 2,        ///< *
-    OP_DIV = 3,        ///< /
-    OP_POW = 4,        ///< ^
-    OP_SQRT = 5,       ///< sqrt()
-    OP_SIN = 6,        ///< sin
-    OP_COS = 7,        ///< cos
-    OP_SINH = 8,       ///< sh
-    OP_COSH = 9,       ///< ch
-    OP_TAN = 10,        ///< tan
-    OP_CTG = 11,        ///< ctg
-    OP_LOGN = 12,       ///< ln
+    OP_SUB,        ///< -
+    OP_MUL,        ///< *
+    OP_DIV,        ///< /
+    OP_POW,        ///< ^
+    OP_SQRT,       ///< sqrt()
+    OP_SIN,        ///< sin
+    OP_COS,        ///< cos
+    OP_SINH,       ///< sh
+    OP_COSH,       ///< ch
+    OP_TAN,        ///< tan
+    OP_CTG,        ///< ctg
+    OP_LOGN,       ///< ln
 //control flow operators
-    OP_ASSIGN = 13,     ///< =
-    OP_IF = 14,         ///< if
-    OP_WHILE = 15,      ///< while
-    OP_FUNC_DECL = 16,  ///< declare function
-    // OP_VAR_DECL,   ///< declare variable
-    OP_IN = 17,         ///< scanf, cin
-    OP_OUT = 18,        ///< printf, cout
+    OP_ASSIGN,     ///< =
+    OP_IF,         ///< if
+    OP_WHILE,      ///< while
+    OP_FUNC_DECL,  ///< declare function
+    OP_VAR_DECL,   ///< declare variable
+    OP_IN,         ///< scanf, cin
+    OP_OUT,        ///< printf, cout
 //other operators
-    OP_LBRACKET = 19,   ///< (
-    OP_RBRACKET = 20,   ///< )
-    OP_LABRACKET = 21,  ///< <
-    OP_RABRACKET = 22,  ///< >
-    OP_SEMICOLON = 23,  ///< ;
-    OP_ARROW = 24,      ///< ->
+    OP_LBRACKET,   ///< (
+    OP_RBRACKET,   ///< )
+    OP_LABRACKET,  ///< <
+    OP_RABRACKET,  ///< >
+    OP_SEP,        ///< ;
+    OP_ARROW,      ///< ->
+    OP_RET,        ///< pay
 
-    OP_COMMA = 25,      /// ,
+    OP_COMMA,      /// ,
+//language specific tokens
+    OP_DOLLAR,     /// $
+    OP_RUBLE,      /// ₽
 
-    OP_DOLLAR = 26,     /// $
-    OP_RUBLE = 27,      /// ₽
-
-    OP_RET  = 28,
-    OP_CALL = 29,       ///
-    OP_FUNC_HEADER = 30,
-    OP_EOF = 31        ///< \0
+    OP_CALL,
+    OP_FUNC_HEADER,
+    OP_EOF        ///< \0
 };
 
 typedef struct {
@@ -97,26 +97,26 @@ const Operator_t operators[] = {
     {.opCode = OP_IF,        .binary = 0, .str = "if",    .priority = -2},
     {.opCode = OP_WHILE,     .binary = 0, .str = "while", .priority = -2},
     {.opCode = OP_FUNC_DECL, .binary = 0, .str = "Transaction", .dotStr = "Function decl", .priority = -2},
-    // {.opCode = OP_VAR_DECL,     .binary = 0, .str = "Account"       , .priority = 3},
-    {.opCode = OP_IN,       .binary = 0, .str = "Invest",      .dotStr = "In",  .asmStr = "IN",  .priority = 3},
-    {.opCode = OP_OUT,      .binary = 0, .str = "ShowBalance", .dotStr = "Out", .asmStr = "OUT", .priority = 3},
+    {.opCode = OP_VAR_DECL,  .binary = 0, .str = "Account"    , .dotStr = "Variable decl",  .priority = -2},
+    {.opCode = OP_IN,        .binary = 0, .str = "Invest",      .dotStr = "In",  .asmStr = "IN",  .priority = 3},
+    {.opCode = OP_OUT,       .binary = 0, .str = "ShowBalance", .dotStr = "Out", .asmStr = "OUT", .priority = 3},
 
     {.opCode = OP_LBRACKET,    .binary = 0, .str = "("  , .priority = 3},
     {.opCode = OP_RBRACKET,    .binary = 0, .str = ")"  , .priority = 3},
     {.opCode = OP_LABRACKET,   .binary = 1, .str = "<"  , .dotStr = "less",    .asmStr = "CALL __LESS\n", .priority = -1},
     {.opCode = OP_RABRACKET,   .binary = 1, .str = ">"  , .dotStr = "greater", .asmStr = "CALL __GREATER\n", .priority = -1},
-    {.opCode = OP_SEMICOLON,   .binary = 1, .str = "%"  , .dotStr = ";", .priority = -2},
+    {.opCode = OP_SEP,         .binary = 1, .str = "%"  , .dotStr = ";", .priority = -2},
     {.opCode = OP_ARROW,       .binary = 1, .str = "->" , .priority = 3},
+    {.opCode = OP_RET,         .binary = 0, .str = "Pay", .dotStr = "ret"},
 
     {.opCode = OP_COMMA,       .binary = 1, .str = "," , .priority = -2},
 
     {.opCode = OP_DOLLAR,      .binary = 0, .str = "$"},
     {.opCode = OP_RUBLE,       .binary = 0, .str = "₽"},
 
-    {.opCode = OP_RET,         .binary = 0, .str = "Pay", .dotStr = "ret"},
-    {.opCode = OP_CALL,        .binary = 1, .str = "", .dotStr = "call", .priority = -2},
-    {.opCode = OP_FUNC_HEADER, .binary = 1, .str = "", .dotStr = "function header"},
-    {.opCode = OP_EOF,         .binary = 0, .str = "__EOF__" , .priority = -1}
+    {.opCode = OP_CALL,        .binary = 1, .str = NULL, .dotStr = "call", .priority = -2},
+    {.opCode = OP_FUNC_HEADER, .binary = 1, .str = NULL, .dotStr = "function header"},
+    {.opCode = OP_EOF,         .binary = 0, .str = NULL, .dotStr = "__EOF__" , .priority = -1}
 };
 
 union NodeValue {

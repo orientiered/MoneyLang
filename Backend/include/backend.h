@@ -14,6 +14,7 @@ typedef struct BackendContext_t {
     Node_t *tree;
 
     int mode;
+    bool inFunction;
     size_t globalVars;
     size_t localVars;
 } Backend_t;
