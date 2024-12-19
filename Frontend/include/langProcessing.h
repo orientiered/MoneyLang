@@ -11,8 +11,8 @@ typedef struct {
     Token_t *text;
     Token_t *pointer;      // current position in str
     enum ParseStatus status;
-} ParseContext_t;
 
+} ParseContext_t;
 /*
 Positive examples = {x = 3$ + 2₽ - x^(3+2) % Invest x % ShowTaxes x
 if x+5 -> y = -5 %

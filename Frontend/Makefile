@@ -68,15 +68,15 @@ RELEASE:
 
 #Automatic target to compile object files
 #$(OBJS) : $(CUR_DIR)/$(OBJDIR)/%.o : %.cpp
-$(GLOBAL_OBJS)     : global/$(OBJDIR)/%.o : global/source/%.cpp
+$(GLOBAL_OBJS)     : global/$(OBJDIR)/%.o : global/source/%.cpp ../LangGlobals/include/Context.h
 	$(CMD_MKDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(LANG_GLOB_OBJS)  : ../LangGlobals/$(OBJDIR)/%.o : ../LangGlobals/source/%.c
+$(LANG_GLOB_OBJS)  : ../LangGlobals/$(OBJDIR)/%.o : ../LangGlobals/source/%.c ../LangGlobals/include/Context.h
 	$(CMD_MKDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(LOCAL_OBJS)      : $(OBJDIR)/%.o : source/%.c
+$(LOCAL_OBJS)      : $(OBJDIR)/%.o : source/%.c ../LangGlobals/include/Context.h
 	$(CMD_MKDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 

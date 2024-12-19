@@ -36,7 +36,7 @@ static Node_t *GetFunctionArgs(ParseContext_t *context, LangContext_t *frontend)
 
 static Node_t *GetInput(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetPrint(ParseContext_t *context, LangContext_t *frontend);
-static Node_t *GetPay(ParseContext_t *context, LangContext_t *frontend);
+static Node_t *GetReturn(ParseContext_t *context, LangContext_t *frontend);
 
 static Node_t *GetExpr(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetAddPr(ParseContext_t *context, LangContext_t *frontend);
@@ -296,13 +296,12 @@ static Node_t *GetBlock(ParseContext_t *context, LangContext_t *frontend) {
 
 static Node_t *GetStatementBase(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
-    //TODO: make array of functions and loop over them
     typedef Node_t *(*SyntaxFunc_t)(ParseContext_t *, LangContext_t *);
 
     const SyntaxFunc_t Getters[] = {
         GetInput,
         GetPrint,
-        GetPay,
+        GetReturn,
         GetFunctionCall,
         GetAssignment
     };
@@ -417,66 +416,63 @@ static Node_t *GetStatement(ParseContext_t *context, LangContext_t *frontend) {
 static Node_t *GetInput(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
 
-    Node_t *current = &context->pointer->node;
-    if (current->type != OPERATOR || current->value.op != OP_IN) {
+    if (!cmpOp(context->pointer, OP_IN) ){
         context->status = SOFT_ERROR;
         return NULL;
     }
+    Node_t *inNode = &context->pointer->node;
     context->pointer++;
     Node_t *id = GetIdentifier(context, frontend);
-    if (context->status != PARSE_SUCCESS) {
-        context->status = HARD_ERROR;
+    if (!SUCCESS)
         SyntaxError(context, frontend, NULL, "GetInput: expected identifier");
-    }
-    current->left = id;
-    id->parent = current;
+
+    inNode->left = id;
+    id->parent = inNode;
 
     LOG_EXIT();
-    return current;
+    return inNode;
 }
 
 static Node_t *GetPrint(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
 
-    Node_t *current = &context->pointer->node;
-    if (current->type != OPERATOR || current->value.op != OP_OUT) {
+    if (!cmpOp(context->pointer, OP_OUT) ) {
         context->status = SOFT_ERROR;
         return NULL;
     }
+    Node_t *outNode = &context->pointer->node;
 
     context->pointer++;
     Node_t *expr = GetExpr(context, frontend);
-    if (context->status != PARSE_SUCCESS) {
-        context->status = HARD_ERROR;
+    if (context->status != PARSE_SUCCESS)
         SyntaxError(context, frontend, NULL, "GetInput: expected expression");
-    }
-    current->left = expr;
-    expr->parent = current;
+
+    outNode->left = expr;
+    expr->parent = outNode;
 
     LOG_EXIT();
-    return current;
+    return outNode;
 }
 
-static Node_t *GetPay(ParseContext_t *context, LangContext_t *frontend) {
+static Node_t *GetReturn(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
 
-    Node_t *current = &context->pointer->node;
-    if (current->type != OPERATOR || current->value.op != OP_RET) {
+    if (!cmpOp(context->pointer, OP_RET) ) {
         context->status = SOFT_ERROR;
         return NULL;
     }
+    Node_t *retNode = &context->pointer->node;
 
     context->pointer++;
     Node_t *expr = GetExpr(context, frontend);
-    if (context->status != PARSE_SUCCESS) {
-        context->status = HARD_ERROR;
-        SyntaxError(context, frontend, NULL, "GetPay: expected expression");
-    }
-    current->left = expr;
-    expr->parent = current;
+    if (context->status != PARSE_SUCCESS)
+        SyntaxError(context, frontend, NULL, "GetReturn: expected expression");
+
+    retNode->left = expr;
+    expr->parent = retNode;
 
     LOG_EXIT();
-    return current;
+    return retNode;
 }
 
 
@@ -484,14 +480,17 @@ static Node_t *GetPay(ParseContext_t *context, LangContext_t *frontend) {
 static Node_t *GetAssignment(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
 
+    Token_t *lastToken = context->pointer;
     Node_t *left = GetIdentifier(context, frontend);
     // DUMP_TREE(frontend, left, 0);
 
-    if (context->status != PARSE_SUCCESS)
+    if (!SUCCESS)
         return NULL;
 
     if (!cmpOp(context->pointer, OP_ASSIGN)) {
-        SyntaxError(context, frontend, NULL, "Expected OP_ASSIGN\n");
+        context->status = SOFT_ERROR;
+        context->pointer = lastToken;
+        return NULL;
     }
 
     Node_t *op = &context->pointer->node;
@@ -500,8 +499,8 @@ static Node_t *GetAssignment(ParseContext_t *context, LangContext_t *frontend) {
     Node_t *right = GetExpr(context, frontend);
     // DUMP_TREE(frontend, right, 0);
 
-    if (context->status != PARSE_SUCCESS)
-        return NULL;
+    if (!SUCCESS)
+        SyntaxError(context, frontend, NULL, "Expected expression after =\n");
 
     op->left = left;
     op->right = right;

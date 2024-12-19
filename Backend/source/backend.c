@@ -9,22 +9,45 @@
 #include "Context.h"
 #include "backend.h"
 
-BackendStatus_t BackendInit(LangContext_t *context, const char *inputFileName, const char *outputFileName,
+static void backendToLangContext(LangContext_t *lContext, Backend_t *context) {
+    lContext->inputFileName  = context->inputFileName;
+    lContext->outputFileName = context->outputFileName;
+    lContext->text           = context->text;
+    lContext->nameTable      = context->nameTable;
+    lContext->treeMemory     = context->treeMemory;
+    lContext->tree           = context->tree;
+    lContext->mode           = context->mode;
+}
+
+static void langContextToBackend(Backend_t *context, LangContext_t *lContext) {
+    context->inputFileName   = lContext->inputFileName;
+    context->outputFileName  = lContext->outputFileName;
+    context->text            = lContext->text;
+    context->nameTable       = lContext->nameTable;
+    context->treeMemory      = lContext->treeMemory;
+    context->tree            = lContext->tree;
+    context->mode            = lContext->mode;
+}
+
+BackendStatus_t BackendInit(Backend_t *context, const char *inputFileName, const char *outputFileName,
                                size_t maxTokens, size_t maxNametableSize, size_t maxTotalNamesLen) {
 
     context->inputFileName = inputFileName;
     context->outputFileName = outputFileName;
 
     NameTableCtor(&context->nameTable, maxTotalNamesLen, maxNametableSize);
-        context->treeMemory = createMemoryArena(maxTokens, sizeof(Node_t));
+    context->treeMemory = createMemoryArena(maxTokens, sizeof(Node_t));
 
     context->text = readFileToStr(inputFileName);
+
+    context->globalVars = 0;
+    context->localVars = 0;
 
     logPrint(L_EXTRA, 0, "Initialized backend\n");
     return BACKEND_SUCCESS;
 }
 
-BackendStatus_t BackendDelete(LangContext_t *context) {
+BackendStatus_t BackendDelete(Backend_t *context) {
     assert(context);
 
     free( (void *) context->text);
@@ -36,12 +59,15 @@ BackendStatus_t BackendDelete(LangContext_t *context) {
     return BACKEND_SUCCESS;
 }
 
-BackendStatus_t BackendRun(LangContext_t *context) {
-    IRStatus_t irStatus = readFromIR(context);
+BackendStatus_t BackendRun(Backend_t *context) {
+    LangContext_t lContext = {0};
+    backendToLangContext(&lContext, context);
+    IRStatus_t irStatus = readFromIR(&lContext);
     if (irStatus != IR_SUCCESS)
         return BACKEND_IR_ERROR;
 
-    DUMP_TREE(context, context->tree, 0);
+    langContextToBackend(context, &lContext);
+    DUMP_TREE(&lContext, context->tree, 0);
 
     BackendStatus_t status = translateToAsm(context);
     if (status != BACKEND_SUCCESS)
@@ -50,7 +76,31 @@ BackendStatus_t BackendRun(LangContext_t *context) {
     return BACKEND_SUCCESS;
 }
 
-static BackendStatus_t translateToAsmRecursive(LangContext_t *context, FILE *file, Node_t *node) {
+static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, Node_t *node);
+
+
+static BackendStatus_t translateArguments(Backend_t *context, FILE *file, Node_t *node) {
+    return BACKEND_SUCCESS;
+}
+
+static BackendStatus_t translateFuncDecl(Backend_t *context, FILE *file, Node_t *node) {
+    assert(context);
+    assert(file);
+    assert(node);
+    assert(node->value.op == OP_FUNC_DECL);
+
+    const char *funcName = getIdFromTable(&context->nameTable, node->left->left->value.id).str;
+    fprintf(file, "#----Translating function %s-------#\n", funcName);
+    fprintf(file, "JMP DECL_END_%s\n", funcName);
+    fprintf(file, "%s:\n", funcName);
+    RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
+
+    fprintf(file, "\nDECL_END_%s:\n", funcName);
+    fprintf(file, "#----End of function %s------------#\n", funcName);
+    return BACKEND_SUCCESS;
+}
+
+static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, Node_t *node) {
     assert(context);
     assert(file);
     assert(node);
@@ -73,10 +123,30 @@ static BackendStatus_t translateToAsmRecursive(LangContext_t *context, FILE *fil
     switch(node->value.op) {
         case OP_SEMICOLON:
             fprintf(file, "\n; %d\n", operatorCounter++);
-            translateToAsmRecursive(context, file, node->left);
+            RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
             if (node->right)
-                translateToAsmRecursive(context, file, node->right);
+                RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
 
+            break;
+        case OP_FUNC_DECL:
+            RET_ON_ERROR(translateFuncDecl(context, file, node));
+            break;
+        case OP_CALL:
+        {
+            Identifier_t func = getIdFromTable(&context->nameTable, node->left->value.id);
+            if (func.type != FUNC_ID)
+                SyntaxError(context, BACKEND_TYPE_ERROR, "Try to use variable %s as a function\n", func.str);
+            //TODO: arguments count check
+            if (node->right)
+                RET_ON_ERROR(translateArguments(context, file, node->right));
+            fprintf(file, "CALL %s\n", func.str);
+            fprintf(file, "PUSH RAX\n");
+            break;
+        }
+        case OP_RET:
+            RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
+            fprintf(file, "POP RAX ; Storing result value\n");
+            fprintf(file, "RET\n");
             break;
         case OP_IF:
         {
@@ -84,12 +154,12 @@ static BackendStatus_t translateToAsmRecursive(LangContext_t *context, FILE *fil
             ifCounter++;
 
             fprintf(file, "; if %d\n; conditional part\n", currentIf);
-            translateToAsmRecursive(context, file, node->left);
+            RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
             fprintf(file,   "PUSH 0\n"
                             "JE IF_END%d\n", currentIf);
 
             fprintf(file, "; if %d statement part\n", currentIf);
-            translateToAsmRecursive(context, file, node->right);
+            RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
             fprintf(file,   "IF_END%d:\n", currentIf);
             break;
         }
@@ -100,20 +170,20 @@ static BackendStatus_t translateToAsmRecursive(LangContext_t *context, FILE *fil
 
             fprintf(file, "; LOOP %d\n; conditional part\n", currentWhile);
             fprintf(file, "LOOP%d:\n\n", currentWhile);
-            translateToAsmRecursive(context, file, node->left);
+            RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
             fprintf(file,   "PUSH 0\n"
                             "JE LOOP_END%d\n", currentWhile);
 
             fprintf(file, "\n; while %d statement part\n", currentWhile);
-            translateToAsmRecursive(context, file, node->right);
+            RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
             fprintf(file,   "\tJMP LOOP%d\n", currentWhile);
             fprintf(file,   "LOOP_END%d:\n", currentWhile);
             break;
         }
         case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV:
         case OP_LABRACKET: case OP_RABRACKET:
-            translateToAsmRecursive(context, file, node->left);
-            translateToAsmRecursive(context, file, node->right);
+            RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
+            RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
             fprintf(file, "%s\n", operators[node->value.op].asmStr);
             break;
         case OP_IN:
@@ -138,7 +208,7 @@ static BackendStatus_t translateToAsmRecursive(LangContext_t *context, FILE *fil
     return BACKEND_SUCCESS;
 }
 
-BackendStatus_t translateToAsm(LangContext_t *context) {
+BackendStatus_t translateToAsm(Backend_t *context) {
     assert(context);
     assert(context->tree);
     assert(context->outputFileName);

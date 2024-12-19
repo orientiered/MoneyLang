@@ -8,8 +8,9 @@
 #define EXPR_TREE_DUMP_IMG_FORMAT "expr_dump_%04zu."
 
 const char * const OPERATOR_COLOR       = "#EDE1CF";
-const char * const VAR_ID_COLOR     = "#f3d4de";
-const char * const FUNC_ID_COLOR     = "#24e658";
+const char * const SEP_COLOR            = "#CCCCCC";
+const char * const VAR_ID_COLOR         = "#f3d4de";
+const char * const FUNC_ID_COLOR        = "#24e658";
 const char * const NUMBER_COLOR         = "#107980";
 const char * const DEFAULT_NODE_COLOR   = "#000000";
 const size_t DUMP_BUFFER_SIZE = 128;

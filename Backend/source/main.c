@@ -55,7 +55,7 @@ int main(int argc, const char *argv[]) {
     size_t namesLen = getFlagValue("-l").int_;
     if (namesLen == 0) namesLen = DEFAULT_NAMES_LEN;
 
-    LangContext_t context = {0};
+    Backend_t context = {0};
     BackendInit(&context, inputFileName, outputFileName, maxTokens, nameTableSize, namesLen);
 
     BackendRun(&context);
