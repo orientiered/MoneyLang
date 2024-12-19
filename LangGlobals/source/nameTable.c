@@ -79,10 +79,11 @@ Identifier_t getIdFromTable(NameTable_t *table, size_t idx) {
 }
 
 NameTableStatus_t NameTableWrite(NameTable_t *table, FILE *file) {
-    fprintf(file, "NAMETABLE\nsize:%d {\n", table->size);
+    fprintf(file, "NAMETABLE size: %zu {\n", table->size);
     for (size_t idx = 0; idx < table->size; idx++) {
-        // const char *type =
-        fprintf(file, "\t\"%s\" %d\n", table->identifiers[idx].str, table->identifiers[idx].type);
+        Identifier_t *id = table->identifiers + idx;
+        const char *typeStr = (id->type == VAR_ID) ? "VAR" : "FUNC";
+        fprintf(file, "\t%04zu: \"%s\", %s, %d;\n", idx, id->str, typeStr, id->argsCount);
     }
     fprintf(file, "}\n");
     return NAMETABLE_SUCCESS;
@@ -91,7 +92,7 @@ NameTableStatus_t NameTableWrite(NameTable_t *table, FILE *file) {
 NameTableStatus_t NameTableRead(NameTable_t *table, const char **text) {
     size_t size = 0;
     int shift = 0;
-    if (sscanf(*text, " NAMETABLE size:%d {%n", &size, &shift) != 1) {
+    if (sscanf(*text, " NAMETABLE size:%zu {%n", &size, &shift) != 1) {
         logPrint(L_ZERO, 1, "Wrong nametable format\n");
         return NAMETABLE_WRONG_FILE_FORMAT;
     }
@@ -109,33 +110,45 @@ NameTableStatus_t NameTableRead(NameTable_t *table, const char **text) {
     table->size = size;
 
     char buffer[NAMETABLE_BUFFER_SIZE] = "";
+    char typeBuffer[NAMETABLE_BUFFER_SIZE] = "";
     size_t nameLen = 0;
 
     for (size_t idx = 0; idx < table->size; idx++) {
         size_t start = 0, end = 0;
-        if (sscanf(*text, " \"%n%[^\"]\"%n", &start, buffer, &end) != 1) {
-            logPrint(L_ZERO, 1, "Wrong nametable format\n");
+        size_t scanIndex = 0;
+        size_t argsCount = 0;
+        if (sscanf(*text, " %zu : \"%n%[^\"]\"%n , %[^ ,;] , %zu;%n",
+                    &scanIndex, &start, buffer, &end, typeBuffer, &argsCount, &shift) != 4) {
+            logPrint(L_ZERO, 1, "Wrong nametable format: can't scan\n");
             return NAMETABLE_WRONG_FILE_FORMAT;
         }
 
+        if (scanIndex != idx) {
+            logPrint(L_ZERO, 1, "Wrong nametable format: index mismatch\n");
+            return NAMETABLE_WRONG_FILE_FORMAT;
+        }
+
+        if (strcmp(typeBuffer, "FUNC") == 0) {
+            table->identifiers[idx].type = FUNC_ID;
+        } else if (strcmp(typeBuffer, "VAR") == 0 ) {
+            table->identifiers[idx].type = VAR_ID;
+        } else {
+            logPrint(L_ZERO, 1, "Wrong nametable format: bad id type\n");
+            return NAMETABLE_WRONG_FILE_FORMAT;
+        }
+
+        table->identifiers[idx].argsCount = argsCount;
         nameLen = end - start;
-        *text += end;
+        *text += shift;
 
         char *idStr = GET_MEMORY_S(&table->namesArray, nameLen + 1, char);
         if (!idStr) {
             logPrint(L_ZERO, 1, "ERROR:!!! NameTable namesArray overflow !!!\n");
             return NAMETABLE_NAMES_OVERFLOW;
         }
-
         strcpy(idStr, buffer);
         table->identifiers[idx].str = idStr;
 
-        if (sscanf(*text, " %d%n", &table->identifiers[idx].type, &shift) != 1) {
-            logPrint(L_ZERO, 1, "Wrong nametable format\n");
-            return NAMETABLE_WRONG_FILE_FORMAT;
-        }
-
-        *text += shift;
     }
 
     sscanf(*text, " }%n", &shift);

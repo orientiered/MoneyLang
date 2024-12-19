@@ -181,6 +181,24 @@ static void printTabulation(FILE* file, unsigned tabs) {
         putc('\t', file);
 }
 
+static const char *getIRString(size_t id) {
+    for (size_t idx = 0; idx < ARRAY_SIZE(IRNames); idx++) {
+        if (IRNames[idx].opCode == id)
+            return IRNames[idx].name;
+    }
+    return NULL;
+}
+
+static int getOpCode(const char *IRString) {
+    for (size_t idx = 0; idx < ARRAY_SIZE(IRNames); idx++) {
+        if (strcmp(IRNames[idx].name, IRString) == 0)
+            return IRNames[idx].opCode;
+    }
+
+    return -1;
+}
+
+
 IRStatus_t writeTreeToIR(Node_t *node, FILE *file, unsigned tabulation) {
 
     printTabulation(file, tabulation);
@@ -195,13 +213,16 @@ IRStatus_t writeTreeToIR(Node_t *node, FILE *file, unsigned tabulation) {
                 fprintf(file, "IDR:%d", node->value.id);
                 break;
             case OPERATOR:
-                fprintf(file, "OPR:%d\n", node->value.op);
+            {
+                const char *IRString = getIRString(node->value.op);
+                fprintf(file, "OPR:%s\n", IRString);
 
                 writeTreeToIR(node->left,  file, tabulation + 1);
                 writeTreeToIR(node->right, file, tabulation + 1);
 
                 printTabulation(file, tabulation);
                 break;
+            }
             default:
                 assert(0);
                 break;
@@ -300,8 +321,8 @@ Node_t *readTreeFromIR(LangContext_t *context, Node_t *parent, const char **text
         return NULL;
     }
 
-    char nodeTypeStr[16] = "";
-    sscanf(*text, " { %[^:]:%n", nodeTypeStr, &shift);
+    char buffer[IR_BUFFER_SIZE] = "";
+    sscanf(*text, " { %[^:]:%n", buffer, &shift);
     if (shift == 0) {
         logPrint(L_ZERO, 1, "Wrong format: expected { at '%.15s'\n", *text);
         return NULL;
@@ -315,7 +336,7 @@ Node_t *readTreeFromIR(LangContext_t *context, Node_t *parent, const char **text
         return NULL;
     }
 
-    node->type = getNodeType(nodeTypeStr);
+    node->type = getNodeType(buffer);
     node->parent = parent;
 
     switch (node->type) {
@@ -336,11 +357,19 @@ Node_t *readTreeFromIR(LangContext_t *context, Node_t *parent, const char **text
             break;
 
         case OPERATOR:
-            if (sscanf(*text, " %d%n", &node->value.op, &shift) != 1) {
+        {
+            if (sscanf(*text, " %[^ \n\t{}]%n", buffer, &shift) != 1) {
                 logPrint(L_ZERO, 1, "PREFIX_READ: Can't read operator\n");
                 return NULL;
             }
             MOVE_TEXT;
+
+            int opCode = getOpCode(buffer);
+            if (opCode == -1) {
+                logPrint(L_ZERO, 1, "Unknown operator '%s'\n", buffer);
+                return NULL;
+            }
+            node->value.op = (enum OperatorType) opCode;
 
             logPrint(L_EXTRA, 0, "Scanning left subtree: '%.20s'\n", *text);
             node->left  = readTreeFromIR(context, node, text);
@@ -349,6 +378,7 @@ Node_t *readTreeFromIR(LangContext_t *context, Node_t *parent, const char **text
             node->right = readTreeFromIR(context, node, text);
 
             break;
+        }
         case UNKNOWN_TYPE:
         default:
             logPrint(L_ZERO, 1, "Something went wrong\n");

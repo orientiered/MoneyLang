@@ -14,8 +14,8 @@ const char * const FUNC_ID_COLOR        = "#24e658";
 const char * const NUMBER_COLOR         = "#107980";
 const char * const DEFAULT_NODE_COLOR   = "#000000";
 const size_t DUMP_BUFFER_SIZE = 128;
-
-#define IR_SIGNATURE_STRING "IR:"
+const size_t IR_BUFFER_SIZE = 64;
+#define IR_SIGNATURE_STRING "IR312:"
 const int IR_FORMAT_VERSION = 1;
 
 enum ElemType {
@@ -87,11 +87,11 @@ const Operator_t operators[] = {
     {.opCode = OP_SQRT, .binary = 0, .isFunction = 1, .str = "sqrt", .asmStr = "SQRT", .priority = 3},
     {.opCode = OP_SIN,  .binary = 0, .isFunction = 1, .str = "sin" , .asmStr = "SIN", .priority = 3},
     {.opCode = OP_COS,  .binary = 0, .isFunction = 1, .str = "cos" , .asmStr = "COS", .priority = 3},
-    {.opCode = OP_SINH, .binary = 0, .isFunction = 1, .str = "sh"  , .asmStr = "", .priority = 3},
-    {.opCode = OP_COSH, .binary = 0, .isFunction = 1, .str = "ch"  , .asmStr = "", .priority = 3},
-    {.opCode = OP_TAN,  .binary = 0, .isFunction = 1, .str = "tg"  , .asmStr = "", .priority = 3},
-    {.opCode = OP_CTG,  .binary = 0, .isFunction = 1, .str = "ctg" , .asmStr = "", .priority = 3},
-    {.opCode = OP_LOGN, .binary = 0, .isFunction = 1, .str = "ln"  , .asmStr = "", .priority = 3},
+    {.opCode = OP_SINH, .binary = 0, .isFunction = 1, .str = "sh"  , .asmStr = "", .priority = 3}, //TODO: remove
+    {.opCode = OP_COSH, .binary = 0, .isFunction = 1, .str = "ch"  , .asmStr = "", .priority = 3}, //TODO: remove
+    {.opCode = OP_TAN,  .binary = 0, .isFunction = 1, .str = "tg"  , .asmStr = "", .priority = 3}, //TODO: remove
+    {.opCode = OP_CTG,  .binary = 0, .isFunction = 1, .str = "ctg" , .asmStr = "", .priority = 3}, //TODO: remove
+    {.opCode = OP_LOGN, .binary = 0, .isFunction = 1, .str = "ln"  , .asmStr = "", .priority = 3}, //TODO: remove
 
     {.opCode = OP_ASSIGN,    .binary = 1, .str = "=",     .priority = -1},
     {.opCode = OP_IF,        .binary = 0, .str = "if",    .priority = -2},
@@ -157,6 +157,47 @@ typedef struct {
 
     int mode; /// 0 frontend 1 inverse frontend
 } LangContext_t;
+
+typedef struct IRName_t {
+    enum OperatorType opCode;
+    const char *name;
+} IRName_t;
+
+const IRName_t IRNames[] = {
+    {OP_ADD , "ADD" },
+    {OP_SUB , "SUB" },
+    {OP_MUL , "MUL" },
+    {OP_DIV , "DIV" },
+
+    {OP_POW , "POW" },
+    {OP_SQRT, "SQRT"},
+    {OP_SIN , "SIN" },
+    {OP_COS , "COS" },
+    {OP_TAN , "TAN" },
+
+    {OP_LABRACKET, "LESS" },
+    {OP_RABRACKET, "GREATER" },
+//  {OP_GREAT_EQ,  "GREATER_EQ"},
+//  {OP_LESS_EQ,   "LESS_EQ"},
+//  {OP_EQUAL,     "EQUAL"},
+//  {OP_NEQUAL,    "N_EQUAL"},
+
+    {OP_IN,        "IN"},
+    {OP_OUT,       "OUT"},
+    {OP_ASSIGN,    "ASSIGN"},
+    {OP_IF,        "IF" },
+//  {OP_ELSE,      "ELSE"},
+    {OP_WHILE,     "WHILE"},
+
+    {OP_SEP,       "SEP"},
+    {OP_COMMA,     "ARG_SEP"},
+
+    {OP_VAR_DECL,  "VAR"},
+    {OP_FUNC_DECL, "DEF"},
+    {OP_CALL,      "CALL"},
+    {OP_RET,       "RET"},
+    {OP_FUNC_HEADER, "FUNC_HDR"}
+};
 
 typedef enum IRStatus_t {
     IR_SUCCESS,
