@@ -48,11 +48,16 @@ enum OperatorType {
     OP_VAR_DECL,   ///< declare variable
     OP_IN,         ///< scanf, cin
     OP_OUT,        ///< printf, cout
+    OP_TEXT,       ///< print constant string
 //other operators
     OP_LBRACKET,   ///< (
     OP_RBRACKET,   ///< )
     OP_LABRACKET,  ///< <
     OP_RABRACKET,  ///< >
+    OP_GREAT_EQ,   ///< >=
+    OP_LESS_EQ,    ///< <=
+    OP_EQUAL,      ///< ==
+    OP_NEQUAL,     ///< !=
     OP_SEP,        ///< ;
     OP_ARROW,      ///< ->
     OP_RET,        ///< pay
@@ -100,19 +105,24 @@ const Operator_t operators[] = {
     {.opCode = OP_VAR_DECL,  .binary = 0, .str = "Account"    , .dotStr = "Variable decl",  .priority = -2},
     {.opCode = OP_IN,        .binary = 0, .str = "Invest",      .dotStr = "In",  .asmStr = "IN",  .priority = 3},
     {.opCode = OP_OUT,       .binary = 0, .str = "ShowBalance", .dotStr = "Out", .asmStr = "OUT", .priority = 3},
+    {.opCode = OP_TEXT,      .binary = 0, .str = "Txt", .dotStr = "Text", .asmStr = "CALL __STR_PRINT", .priority = 3},
 
-    {.opCode = OP_LBRACKET,    .binary = 0, .str = "("  , .priority = 3},
-    {.opCode = OP_RBRACKET,    .binary = 0, .str = ")"  , .priority = 3},
-    {.opCode = OP_LABRACKET,   .binary = 1, .str = "<"  , .dotStr = "less",    .asmStr = "CALL __LESS\n", .priority = -1},
-    {.opCode = OP_RABRACKET,   .binary = 1, .str = ">"  , .dotStr = "greater", .asmStr = "CALL __GREATER\n", .priority = -1},
-    {.opCode = OP_SEP,         .binary = 1, .str = "%"  , .dotStr = ";", .priority = -2},
-    {.opCode = OP_ARROW,       .binary = 1, .str = "->" , .priority = 3},
-    {.opCode = OP_RET,         .binary = 0, .str = "Pay", .dotStr = "ret"},
+    {.opCode = OP_LBRACKET  , .binary = 0, .str = "("  , .priority = 3},
+    {.opCode = OP_RBRACKET  , .binary = 0, .str = ")"  , .priority = 3},
+    {.opCode = OP_LABRACKET , .binary = 1, .str = "<"  , .dotStr = "less"   , .asmStr = "CALL __LESS\n"      , .priority = -1},
+    {.opCode = OP_RABRACKET , .binary = 1, .str = ">"  , .dotStr = "greater", .asmStr = "CALL __GREATER\n"   , .priority = -1},
+    {.opCode = OP_GREAT_EQ  , .binary = 1, .str = ">==", .dotStr = "geq"    , .asmStr = "CALL __GREATER_EQ\n", .priority = -1},
+    {.opCode = OP_LESS_EQ   , .binary = 1, .str = "==<", .dotStr = "leq"    , .asmStr = "CALL __LESS_EQ\n"   , .priority = -1},
+    {.opCode = OP_EQUAL     , .binary = 1, .str = "===", .dotStr = "=="     , .asmStr = "CALL __EQUAL\n"     , .priority = -1},
+    {.opCode = OP_NEQUAL    , .binary = 1, .str = "!==", .dotStr = "!="     , .asmStr = "CALL __NEQUAL\n"    , .priority = -1},
+    {.opCode = OP_SEP       , .binary = 1, .str = "%"  , .dotStr = ";"      , .priority = -2},
+    {.opCode = OP_ARROW     , .binary = 1, .str = "->" , .priority = 3},
+    {.opCode = OP_RET       , .binary = 0, .str = "Pay", .dotStr = "ret"},
 
-    {.opCode = OP_COMMA,       .binary = 1, .str = "," , .priority = -2},
+    {.opCode = OP_COMMA     , .binary = 1, .str = ","  , .priority = -2},
 
-    {.opCode = OP_DOLLAR,      .binary = 0, .str = "$"},
-    {.opCode = OP_RUBLE,       .binary = 0, .str = "₽"},
+    {.opCode = OP_DOLLAR    , .binary = 0, .str = "$"},
+    {.opCode = OP_RUBLE     , .binary = 0, .str = "₽"},
 
     {.opCode = OP_CALL,        .binary = 1, .str = NULL, .dotStr = "call", .priority = -2},
     {.opCode = OP_FUNC_HEADER, .binary = 1, .str = NULL, .dotStr = "function header"},
@@ -177,13 +187,14 @@ const IRName_t IRNames[] = {
 
     {OP_LABRACKET, "LESS" },
     {OP_RABRACKET, "GREATER" },
-//  {OP_GREAT_EQ,  "GREATER_EQ"},
-//  {OP_LESS_EQ,   "LESS_EQ"},
-//  {OP_EQUAL,     "EQUAL"},
-//  {OP_NEQUAL,    "N_EQUAL"},
+    {OP_GREAT_EQ,  "GREATER_EQ"},
+    {OP_LESS_EQ,   "LESS_EQ"},
+    {OP_EQUAL,     "EQUAL"},
+    {OP_NEQUAL,    "N_EQUAL"},
 
     {OP_IN,        "IN"},
     {OP_OUT,       "OUT"},
+    {OP_TEXT,      "TEXT"},
     {OP_ASSIGN,    "ASSIGN"},
     {OP_IF,        "IF" },
 //  {OP_ELSE,      "ELSE"},

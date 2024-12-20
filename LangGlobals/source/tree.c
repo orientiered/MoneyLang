@@ -394,4 +394,4 @@ Node_t *readTreeFromIR(LangContext_t *context, Node_t *parent, const char **text
 
     return node;
 }
-#undef MOVE_TEXT;
+#undef MOVE_TEXT

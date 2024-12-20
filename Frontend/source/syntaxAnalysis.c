@@ -538,7 +538,9 @@ static Node_t *GetExpr(ParseContext_t *context, LangContext_t *frontend) {
     if (context->status != PARSE_SUCCESS)
         return left;
 
-    while (cmpOp(context->pointer, OP_RABRACKET) || cmpOp(context->pointer, OP_LABRACKET)) {
+    while (cmpOp(context->pointer, OP_RABRACKET) || cmpOp(context->pointer, OP_LABRACKET) ||
+           cmpOp(context->pointer, OP_GREAT_EQ)  || cmpOp(context->pointer, OP_LESS_EQ) ||
+           cmpOp(context->pointer, OP_EQUAL)     || cmpOp(context->pointer, OP_NEQUAL)) {
         Node_t *op = &context->pointer->node;
 
         context->pointer++;

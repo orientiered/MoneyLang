@@ -38,7 +38,7 @@ Input  ::= "Invest" Identifier
 VarDecl ::= "Account" Identifier
 Assignment ::= Identifier '=' Expr
 
-Expr   ::=AddPr{ ['>''<'] AddPr}*
+Expr   ::=AddPr{ ['>''<' '>==' '==<' '====' '!=='] AddPr}*
 AddPr  ::=MulPr{ ['+''-']  MulPr}*
 MulPr  ::=PowPr{ ['*''/']  PowPr}*
 PowPr  ::=Primary{ '^'  PowPr}?

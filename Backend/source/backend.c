@@ -84,9 +84,14 @@ static BackendStatus_t translateCallArguments(Backend_t *context, FILE *file, No
     fprintf(file, "; Pushing function arguments\n");
     size_t argIdx = 0;
     while (node) {
-        Node_t *argNode = (node->type == OPERATOR && node->value.op == OP_COMMA) ?
-                                node->left :
-                                node;
+        Node_t *nextNode = NULL, *argNode = NULL;
+        if (node->type == OPERATOR && node->value.op == OP_COMMA) {
+            nextNode = node->right;
+            argNode = node->left;
+        } else {
+            nextNode = NULL;
+            argNode = node;
+        }
 
         RET_ON_ERROR(translateToAsmRecursive(context, file, argNode));
         if (context->inFunction)
@@ -95,7 +100,7 @@ static BackendStatus_t translateCallArguments(Backend_t *context, FILE *file, No
         else
             fprintf(file, "POP [%d] ; global scope\n", context->globalVars + argIdx);
         argIdx++;
-        node = node->right;
+        node = nextNode;
     }
 
     return BACKEND_SUCCESS;
@@ -273,6 +278,7 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
         }
         case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV:
         case OP_LABRACKET: case OP_RABRACKET:
+        case OP_GREAT_EQ:  case OP_LESS_EQ: case OP_EQUAL: case OP_NEQUAL:
             RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
             RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
             fprintf(file, "%s\n", operators[node->value.op].asmStr);
@@ -299,6 +305,8 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
     return BACKEND_SUCCESS;
 }
 
+BackendStatus_t translateAsmSTD(Backend_t *context, FILE *file);
+
 BackendStatus_t translateToAsm(Backend_t *context) {
     assert(context);
     assert(context->tree);
@@ -316,25 +324,35 @@ BackendStatus_t translateToAsm(Backend_t *context) {
 
     RET_ON_ERROR(translateToAsmRecursive(context, file, context->tree));
     fprintf(file, "HLT\n\n");
-    fprintf(file,
-    "__LESS:\n"
-    "\tJA __LESS0\n"
-    "\tPUSH 1\n"
-    "\tRET\n"
-    "__LESS0:\n"
-    "\tPUSH 0\n"
-    "\tRET\n\n"
-    );
-    fprintf(file,
-    "__GREATER:\n"
-    "\tJB __GREATER0\n"
-    "\tPUSH 1\n"
-    "\tRET\n"
-    "__GREATER0:\n"
-    "\tPUSH 0\n"
-    "\tRET\n"
-    );
+
+    RET_ON_ERROR(translateAsmSTD(context, file));
     fclose(file);
 
+    return BACKEND_SUCCESS;
+}
+
+BackendStatus_t translateAsmSTD(Backend_t *context, FILE *file) {
+    const char *ineqCalls[] = {"__LESS", "__GREATER", "__GREATER_EQ", "__LESS_EQ", "__EQUAL", "__NEQUAL"};
+    const char *ineqJumps[] = {"JB",     "JA",        "JAE",          "JBE",       "JE",      "JNE"};
+    for (unsigned idx = 0; idx < ARRAY_SIZE(ineqCalls); idx++) {
+        fprintf(file,
+        "%s:\n"
+        "\t%s %s1\n"
+        "\tPUSH 0\n"
+        "\tRET\n"
+        "%s1:\n"
+        "\tPUSH 1\n"
+        "\tRET\n\n",
+        ineqCalls[idx], ineqJumps[idx], ineqCalls[idx], ineqCalls[idx]);
+    }
+/*example
+    __LESS:
+        JB __LESS1
+        PUSH 0
+        RET
+    __LESS1:
+        PUSH 1
+        RET
+*/
     return BACKEND_SUCCESS;
 }
