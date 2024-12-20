@@ -29,7 +29,8 @@ Negative examples = {y, sin(), 5.23 , Invest x+5}
 Grammar::= [FunctionDecl | Block ]+ EOF
 FunctionDecl::= "Transaction" IdChain '->' Identifier '->' Block
 Block  ::= "<" Block+ ">" | Statement
-Statement ::= [Input | Print | Pay | VarDecl | FunctionCall | Assignment] % | If | While
+Statement ::= [Input | Print | Pay | Text | VarDecl | FunctionCall | Assignment] % | If | While
+Text   ::= "Txt"  \"String\"
 If     ::= "if" Expr -> Block Else?
 Else   ::= "else" BLock
 While  ::= "while" Expr -> Block
@@ -54,7 +55,7 @@ Primary::= '(' Expr ')' | FuncOper | FunctionCall | Identifier | Num
 
 FuncOper   ::=["sin" "cos" "tg" "ctg" "ln"]'(' Expr ')'
 Identifier ::=['a'-'z''_']+ ['a'-'z''_''0'-'9']*
-
+String     ::=[^"]
 Num    ::= [number][₽$]
 */
 

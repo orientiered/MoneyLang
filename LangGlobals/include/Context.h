@@ -61,6 +61,7 @@ enum OperatorType {
     OP_NEQUAL,     ///< !=
     OP_SEP,        ///< ;
     OP_ARROW,      ///< ->
+    OP_QUOTE,      ///< "
     OP_RET,        ///< pay
 
     OP_COMMA,      /// ,
@@ -119,6 +120,7 @@ const Operator_t operators[] = {
     {.opCode = OP_NEQUAL    , .binary = 1, .str = "!==", .dotStr = "!="     , .asmStr = "CALL __NEQUAL\n"    , .priority = -1},
     {.opCode = OP_SEP       , .binary = 1, .str = "%"  , .dotStr = ";"      , .priority = -2},
     {.opCode = OP_ARROW     , .binary = 1, .str = "->" , .priority = 3},
+    {.opCode = OP_QUOTE     , .binary = 0, .str = "\"" , .priority = 3},
     {.opCode = OP_RET       , .binary = 0, .str = "Pay", .dotStr = "ret"},
 
     {.opCode = OP_COMMA     , .binary = 1, .str = ","  , .priority = -2},

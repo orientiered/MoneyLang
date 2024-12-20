@@ -69,7 +69,7 @@ BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id) {
 //searches variable in stack and prints it
 BackendStatus_t LocalsStackSearchPrint(LocalsStack_t *stk, int id, Backend_t *backend, FILE *file) {
     int idx = stk->size - 1;
-    bool local = true;
+    bool local = backend->inFunction;
     Identifier_t tableId = getIdFromTable(&backend->nameTable, id);
     logPrint(L_EXTRA, 0, "Searching for %d '%s'\n", id, tableId.str);
 
@@ -212,6 +212,25 @@ static BackendStatus_t translateIf(Backend_t *context, FILE *file, Node_t *node)
     return BACKEND_SUCCESS;
 }
 
+static BackendStatus_t translateWhile(Backend_t *context, FILE *file, Node_t *node) {
+    LocalsStackInitScope(&context->stk, NORMAL_SCOPE);
+    int currentWhile = context->whileCounter++;
+
+    fprintf(file, "; LOOP %d\n; conditional part\n", currentWhile);
+    fprintf(file, "LOOP%d:\n\n", currentWhile);
+    RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
+    fprintf(file,   "PUSH 0\n"
+                    "JE LOOP_END%d\n", currentWhile);
+
+    fprintf(file, "\n; while %d statement part\n", currentWhile);
+    RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
+    fprintf(file,   "\tJMP LOOP%d\n", currentWhile);
+    fprintf(file,   "LOOP_END%d:\n", currentWhile);
+
+    LocalsStackPopScope(&context->stk);
+    return BACKEND_SUCCESS;
+}
+
 static BackendStatus_t translateCallArguments(Backend_t *context, FILE *file, Node_t *node) {
     fprintf(file, "; Pushing function arguments\n");
     size_t argIdx = 0;
@@ -242,6 +261,32 @@ static BackendStatus_t translateCallArguments(Backend_t *context, FILE *file, No
     return BACKEND_SUCCESS;
 }
 
+static BackendStatus_t translateText(Backend_t *context, FILE *file, Node_t *node) {
+    assert(context);
+    assert(file);
+    assert(cmpOp(node, OP_TEXT));
+    const char *string = getIdFromTable(&context->nameTable, node->left->value.id).str;
+//     //rodata is growing from end of RAM
+//     static size_t memoryPointer = PROCESSOR_RAM_SIZE - 1;
+//
+//     fprintf(file, "; storing string %s\n", string);
+//     while (string) {
+//         fprintf(file, "PUSH %d ; '%c'\n"
+//                       "POP  [%d]\n", *string, *string, memoryPointer--);
+//         string++;
+//     }
+//     fprintf(file, "PUSH 0; end of string\n"
+//                   "POP [%d]\n", memoryPointer--);
+    fprintf(file, "; printing string %s\n", string);
+
+    while (*string) {
+        fprintf(file, "CHR %d ; %c\n", *string, *string);
+        string++;
+    }
+    fprintf(file, "CHR %d ; end of string\n", '\n');
+    return BACKEND_SUCCESS;
+}
+
 static BackendStatus_t translateCall(Backend_t *context, FILE *file, Node_t *node) {
     assert(context);
     assert(file);
@@ -269,6 +314,7 @@ static BackendStatus_t translateCall(Backend_t *context, FILE *file, Node_t *nod
     fprintf(file, "PUSH rax\n");
     return BACKEND_SUCCESS;
 }
+
 static BackendStatus_t translateFuncDecl(Backend_t *context, FILE *file, Node_t *node) {
     assert(context);
     assert(file);
@@ -304,6 +350,7 @@ static BackendStatus_t translateFuncDecl(Backend_t *context, FILE *file, Node_t 
     return BACKEND_SUCCESS;
 }
 
+//! DEPRECATED
 static BackendStatus_t translateVariable(Backend_t *context, FILE *file, Node_t *node) {
     Identifier_t id = getIdFromTable(&context->nameTable, node->value.id);
     if (id.type == UNDEFINED_ID)
@@ -369,28 +416,15 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
                 fprintf(file, "CALL __TAXES ; taking taxes from returning value\n");
             fprintf(file, "RET\n");
             break;
+        case OP_TEXT:
+            RET_ON_ERROR(translateText(context, file, node));
+            break;
         case OP_IF:
             RET_ON_ERROR(translateIf(context, file, node));
             break;
         case OP_WHILE:
-        {
-            LocalsStackInitScope(&context->stk, NORMAL_SCOPE);
-            int currentWhile = context->whileCounter++;
-
-            fprintf(file, "; LOOP %d\n; conditional part\n", currentWhile);
-            fprintf(file, "LOOP%d:\n\n", currentWhile);
-            RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
-            fprintf(file,   "PUSH 0\n"
-                            "JE LOOP_END%d\n", currentWhile);
-
-            fprintf(file, "\n; while %d statement part\n", currentWhile);
-            RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
-            fprintf(file,   "\tJMP LOOP%d\n", currentWhile);
-            fprintf(file,   "LOOP_END%d:\n", currentWhile);
-
-            LocalsStackPopScope(&context->stk);
+            RET_ON_ERROR(translateWhile(context, file, node));
             break;
-        }
         case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV:
         case OP_LABRACKET: case OP_RABRACKET:
         case OP_GREAT_EQ:  case OP_LESS_EQ: case OP_EQUAL: case OP_NEQUAL:

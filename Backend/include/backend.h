@@ -63,7 +63,7 @@ BackendStatus_t LocalsStackPopScope(LocalsStack_t *stk);
 BackendStatus_t LocalsStackInitScope(LocalsStack_t *stk, enum ScopeType scope);
 
 const size_t LOCALS_STACK_SIZE = 128;
-
+const size_t PROCESSOR_RAM_SIZE = 16384;
 
 
 const double TAX_COEFF = 0.8;

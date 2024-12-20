@@ -34,12 +34,18 @@ static void skipSpaces(const char **str, size_t *line, size_t *col) {
     // logPrint(L_EXTRA, 0, "Skipped comments: %10s\n", *str);
 }
 
-static size_t readLexemToBuffer(char *buffer, const char **str, size_t *col) {
+static size_t readLexemToBuffer(char *buffer, const char **str, size_t *col, bool previousIsQuote) {
     size_t len = 0;
     //[a-z_] -> [a-z0-9_]*
     //[any symbol that is not alpha, num, space, COMMENT_START_SYMBOL, ()]+
     //TODO: rewrite this code, too ambiguous
-    if (isalpha(**str) || (**str == '_')) {
+    if (previousIsQuote) {
+        while (**str != '\"') {
+            *(buffer++) = *((*str)++);
+            (*col)++;
+            len++;
+        }
+    } else if (isalpha(**str) || (**str == '_')) {
         while (isalnum(**str) || **str == '_') {
             *(buffer++) = *((*str)++);
             (*col)++;
@@ -157,7 +163,9 @@ FrontendStatus_t lexicalAnalysis(LangContext_t *context) {
                 token.node.value.op = (enum OperatorType)idx;
             } else {
                 char buffer[LEXER_BUFFER_SIZE] = "";
-                lexemLen = readLexemToBuffer(buffer, &curStr, &curCol);
+                bool previousIsQuote = false;
+                if (tokenIdx > 0) previousIsQuote = (tokens[tokenIdx-1].node.type == OPERATOR && tokens[tokenIdx-1].node.value.op == OP_QUOTE);
+                lexemLen = readLexemToBuffer(buffer, &curStr, &curCol, previousIsQuote);
 
                 if (lexemLen == 0)
                     lexerError("Can't read lexem\n");

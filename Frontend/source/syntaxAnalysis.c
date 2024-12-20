@@ -52,6 +52,7 @@ static Node_t *GetFunctionCall(ParseContext_t *context, LangContext_t *frontend)
 static Node_t *GetIdOrExprChain(ParseContext_t *context, LangContext_t *frontend, bool expr, size_t *argsCount);
 static Node_t *GetFunctionArgs(ParseContext_t *context, LangContext_t *frontend);
 
+static Node_t *GetText(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetInput(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetPrint(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetReturn(ParseContext_t *context, LangContext_t *frontend);
@@ -193,6 +194,36 @@ declNode        NULL
     linker->left = declNode;
     declNode->parent = linker;
     return linker;
+}
+
+static Node_t *GetText(ParseContext_t *context, LangContext_t *frontend) {
+    LOG_ENTRY();
+    context->status = PARSE_SUCCESS;
+
+    if (!cmpOp(context->pointer, OP_TEXT)) {
+        context->status = SOFT_ERROR;
+        return NULL;
+    }
+
+    Node_t *textNode = &context->pointer->node;
+    context->pointer++;
+
+    if (!cmpOp(context->pointer, OP_QUOTE) )
+        SyntaxError(context, frontend, NULL, "Expected \" after text operator\n");
+
+    context->pointer++;
+    Node_t *textId = GetIdentifier(context, frontend);
+    if (!SUCCESS)
+        SyntaxError(context, frontend, NULL, "Expected id after quote\n");
+
+    if (!cmpOp(context->pointer, OP_QUOTE) )
+        SyntaxError(context, frontend, NULL, "Expected \" after identifier in text operator\n");
+    context->pointer++;
+
+    textNode->left = textId;
+    textId->parent = textNode;
+
+    return textNode;
 }
 
 static Node_t *GetIf(ParseContext_t *context, LangContext_t *frontend) {
@@ -361,6 +392,7 @@ static Node_t *GetStatementBase(ParseContext_t *context, LangContext_t *frontend
         GetInput,
         GetPrint,
         GetReturn,
+        GetText,
         GetVarDecl,
         GetFunctionCall,
         GetAssignment
