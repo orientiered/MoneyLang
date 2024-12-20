@@ -43,6 +43,7 @@ enum OperatorType {
 //control flow operators
     OP_ASSIGN,     ///< =
     OP_IF,         ///< if
+    OP_ELSE,       ///< else
     OP_WHILE,      ///< while
     OP_FUNC_DECL,  ///< declare function
     OP_VAR_DECL,   ///< declare variable
@@ -100,6 +101,7 @@ const Operator_t operators[] = {
 
     {.opCode = OP_ASSIGN,    .binary = 1, .str = "=",     .priority = -1},
     {.opCode = OP_IF,        .binary = 0, .str = "if",    .priority = -2},
+    {.opCode = OP_ELSE,      .binary = 0, .str = "else",  .priority = -2},
     {.opCode = OP_WHILE,     .binary = 0, .str = "while", .priority = -2},
     {.opCode = OP_FUNC_DECL, .binary = 0, .str = "Transaction", .dotStr = "Function decl", .priority = -2},
     {.opCode = OP_VAR_DECL,  .binary = 0, .str = "Account"    , .dotStr = "Variable decl",  .priority = -2},
@@ -197,7 +199,7 @@ const IRName_t IRNames[] = {
     {OP_TEXT,      "TEXT"},
     {OP_ASSIGN,    "ASSIGN"},
     {OP_IF,        "IF" },
-//  {OP_ELSE,      "ELSE"},
+    {OP_ELSE,      "ELSE"},
     {OP_WHILE,     "WHILE"},
 
     {OP_SEP,       "SEP"},

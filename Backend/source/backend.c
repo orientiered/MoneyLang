@@ -10,6 +10,10 @@
 #include "Context.h"
 #include "backend.h"
 
+static bool cmpOp(Node_t *node, enum OperatorType op) {
+    return node && node->type == OPERATOR && node->value.op == op;
+}
+
 static void backendToLangContext(LangContext_t *lContext, Backend_t *context) {
     lContext->inputFileName  = context->inputFileName;
     lContext->outputFileName = context->outputFileName;
@@ -43,6 +47,10 @@ BackendStatus_t BackendInit(Backend_t *context, const char *inputFileName, const
 
     context->globalVars = 0;
     context->localVars = 0;
+
+    context->operatorCounter = 1;
+    context->ifCounter = 1;
+    context->whileCounter = 1;
 
     if (mode)
         context->mode = BACKEND_TAXES;
@@ -82,13 +90,42 @@ BackendStatus_t BackendRun(Backend_t *context) {
 
 static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, Node_t *node);
 
+static BackendStatus_t translateIf(Backend_t *context, FILE *file, Node_t *node) {
+    assert(cmpOp(node, OP_IF));
+
+    int currentIf = context->ifCounter++;
+
+    fprintf(file, "; if %d\n; conditional part\n", currentIf);
+    RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
+
+    if (cmpOp(node->right, OP_ELSE)) {
+        fprintf(file,   "PUSH 0\n"
+                        "JE IF_ELSE%d\n", currentIf);
+        fprintf(file, "; if %d statement part\n", currentIf);
+        RET_ON_ERROR(translateToAsmRecursive(context, file, node->right->left));
+        fprintf(file, "JMP IF_END%d\n", currentIf);
+
+        fprintf(file, "; if %d else part\n", currentIf);
+        fprintf(file, "IF_ELSE%d:\n", currentIf);
+        RET_ON_ERROR(translateToAsmRecursive(context, file, node->right->right));
+    } else {
+        fprintf(file,   "PUSH 0\n"
+                        "JE IF_END%d\n", currentIf);
+
+        fprintf(file, "; if %d statement part\n", currentIf);
+        RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
+    }
+    fprintf(file,   "IF_END%d:\n", currentIf);
+
+    return BACKEND_SUCCESS;
+}
 
 static BackendStatus_t translateCallArguments(Backend_t *context, FILE *file, Node_t *node) {
     fprintf(file, "; Pushing function arguments\n");
     size_t argIdx = 0;
     while (node) {
         Node_t *nextNode = NULL, *argNode = NULL;
-        if (node->type == OPERATOR && node->value.op == OP_COMMA) {
+        if (cmpOp(node, OP_COMMA)) {
             nextNode = node->right;
             argNode = node->left;
         } else {
@@ -196,10 +233,6 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
     assert(file);
     assert(node);
 
-    static int operatorCounter = 1;
-    static int ifCounter       = 1;
-    static int whileCounter    = 1;
-
     if (node->type == NUMBER) {
         fprintf(file, "PUSH %lg\n", node->value.number);
         return BACKEND_SUCCESS;
@@ -213,7 +246,7 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
 
     switch(node->value.op) {
         case OP_SEP:
-            fprintf(file, "\n; %d\n", operatorCounter++);
+            fprintf(file, "\n; %d\n", context->operatorCounter++);
             RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
             if (node->right)
                 RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
@@ -251,24 +284,11 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
             fprintf(file, "RET\n");
             break;
         case OP_IF:
-        {
-            int currentIf = ifCounter;
-            ifCounter++;
-
-            fprintf(file, "; if %d\n; conditional part\n", currentIf);
-            RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
-            fprintf(file,   "PUSH 0\n"
-                            "JE IF_END%d\n", currentIf);
-
-            fprintf(file, "; if %d statement part\n", currentIf);
-            RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
-            fprintf(file,   "IF_END%d:\n", currentIf);
+            RET_ON_ERROR(translateIf(context, file, node));
             break;
-        }
         case OP_WHILE:
         {
-            int currentWhile = whileCounter;
-            whileCounter++;
+            int currentWhile = context->whileCounter++;
 
             fprintf(file, "; LOOP %d\n; conditional part\n", currentWhile);
             fprintf(file, "LOOP%d:\n\n", currentWhile);

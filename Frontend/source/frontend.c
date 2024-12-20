@@ -92,7 +92,14 @@ static void writeIfWhileStatement(LangContext_t *context, FILE *file, Node_t *no
     fprintf(file, "%s ", operators[node->value.op].str);
     writeAsProgramRecursive(context, file, node->left, tabs);
     fprintf(file, " %s \n", operators[OP_ARROW].str);
-    writeScope(context, file, node->right, tabs+1);
+
+    if (node->right->type == OPERATOR && node->right->value.op == OP_ELSE) {
+        writeScope(context, file, node->right->left, tabs+1);
+        printTabs(file, tabs);
+        fprintf(file, "%s \n", operators[OP_ELSE].str);
+        writeScope(context, file, node->right->right, tabs+1);
+    } else
+        writeScope(context, file, node->right, tabs+1);
 }
 
 static void writeFunctionDecl(LangContext_t *context, FILE *file, Node_t *node, unsigned tabs) {

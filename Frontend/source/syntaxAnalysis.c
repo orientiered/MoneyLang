@@ -42,6 +42,7 @@ static Node_t *GetFunctionDecl(ParseContext_t *context, LangContext_t *frontend)
 static Node_t *GetBlock(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetStatement(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetIf(ParseContext_t *context, LangContext_t *frontend);
+static Node_t *GetElse(ParseContext_t *context, LangContext_t *frontend);
 static Node_t *GetWhile(ParseContext_t *context, LangContext_t *frontend);
 
 static Node_t *GetAssignment(ParseContext_t *context, LangContext_t *frontend);
@@ -217,19 +218,57 @@ static Node_t *GetIf(ParseContext_t *context, LangContext_t *frontend) {
     semicolon->value.op = OP_SEP;
     context->pointer++;
 
-    Node_t *right = GetBlock(context, frontend);
+    Node_t *body = GetBlock(context, frontend);
     if (!SUCCESS)
         SyntaxError(context, frontend, NULL, "Expected code block after -> in if statement\n");
+
+    Node_t *elseNode = GetElse(context, frontend);
+    if (HARD_ERR)
+        return NULL;
 
     semicolon->left = val;
     val->parent = semicolon;
 
     val->left = left;
-    val->right = right;
     left->parent = val;
-    right->parent = val;
+
+    if (SUCCESS) {
+        elseNode->left = body;
+        body->parent = elseNode;
+
+        val->right = elseNode;
+        elseNode->parent = val;
+    } else {
+        context->status = PARSE_SUCCESS;
+        val->right = body;
+        body->parent = val;
+    }
+
     return semicolon;
 }
+
+static Node_t *GetElse(ParseContext_t *context, LangContext_t *frontend) {
+    assert(context);
+    assert(frontend);
+    LOG_ENTRY();
+
+    if (!cmpOp(context->pointer, OP_ELSE) ) {
+        context->status = SOFT_ERROR;
+        return NULL;
+    }
+    Node_t *elseNode = &context->pointer->node;
+    context->pointer++;
+
+    Node_t *elseBody = GetBlock(context, frontend);
+    if (!SUCCESS)
+        SyntaxError(context, frontend, NULL, "Expected code block after else statement\n");
+
+    elseNode->right = elseBody;
+    elseBody->parent = elseNode;
+
+    return elseNode;
+}
+
 
 static Node_t *GetWhile(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();

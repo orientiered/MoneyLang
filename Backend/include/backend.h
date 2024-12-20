@@ -17,6 +17,9 @@ typedef struct BackendContext_t {
     bool inFunction;
     size_t globalVars;
     size_t localVars;
+    int operatorCounter;
+    int ifCounter;
+    int whileCounter;
 } Backend_t;
 
 typedef enum BackendStatus_t {
