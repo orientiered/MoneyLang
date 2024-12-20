@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "logger.h"
 #include "argvProcessor.h"
@@ -26,6 +27,8 @@ int main(int argc, const char *argv[]) {
     registerFlag(TYPE_INT,    "-t", "--tokens", "Maximum number of tokens");
     registerFlag(TYPE_INT,    "-n", "--nameTableSize", "Maximum number of records in nametable");
     registerFlag(TYPE_INT,    "-l", "--namesLen", "Maximum total length of all names in nametable");
+
+    registerFlag(TYPE_BLANK,  "- ", "--taxes", "Enables taxing in return operators");
 
     enableHelpFlag("Money language backend: transform IR files to SPU asm\n");
 
@@ -55,8 +58,10 @@ int main(int argc, const char *argv[]) {
     size_t namesLen = getFlagValue("-l").int_;
     if (namesLen == 0) namesLen = DEFAULT_NAMES_LEN;
 
+    bool taxes = isFlagSet("--taxes");
+
     Backend_t context = {0};
-    BackendInit(&context, inputFileName, outputFileName, maxTokens, nameTableSize, namesLen);
+    BackendInit(&context, inputFileName, outputFileName, maxTokens, nameTableSize, namesLen, taxes);
 
     BackendRun(&context);
 

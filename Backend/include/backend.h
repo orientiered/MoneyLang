@@ -28,9 +28,16 @@ typedef enum BackendStatus_t {
     BACKEND_SCOPE_ERROR,
 } BackendStatus_t;
 
+typedef enum BackendMode_t {
+    BACKEND_SIMPLE = 0,
+    BACKEND_TAXES = 1
+} BackendMode_t;
+
+const double TAX_COEFF = 0.8;
+
 /// @brief Initialize frontend context
 BackendStatus_t BackendInit(Backend_t *context, const char *inputFileName, const char *outputFileName,
-                               size_t maxTokens, size_t maxNametableSize, size_t maxTotalNamesLen);
+                               size_t maxTokens, size_t maxNametableSize, size_t maxTotalNamesLen, int mode);
 /// @brief Delete frontend context
 BackendStatus_t BackendDelete(Backend_t *context);
 

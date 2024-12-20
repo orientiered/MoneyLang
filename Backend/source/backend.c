@@ -31,7 +31,7 @@ static void langContextToBackend(Backend_t *context, LangContext_t *lContext) {
 }
 
 BackendStatus_t BackendInit(Backend_t *context, const char *inputFileName, const char *outputFileName,
-                               size_t maxTokens, size_t maxNametableSize, size_t maxTotalNamesLen) {
+                               size_t maxTokens, size_t maxNametableSize, size_t maxTotalNamesLen, int mode) {
 
     context->inputFileName = inputFileName;
     context->outputFileName = outputFileName;
@@ -43,6 +43,9 @@ BackendStatus_t BackendInit(Backend_t *context, const char *inputFileName, const
 
     context->globalVars = 0;
     context->localVars = 0;
+
+    if (mode)
+        context->mode = BACKEND_TAXES;
 
     logPrint(L_EXTRA, 0, "Initialized backend\n");
     return BACKEND_SUCCESS;
@@ -241,7 +244,10 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
         }
         case OP_RET:
             RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
+
             fprintf(file, "POP rax ; Storing result value\n");
+            if (context->mode == BACKEND_TAXES)
+                fprintf(file, "CALL __TAXES ; taking taxes from returning value\n");
             fprintf(file, "RET\n");
             break;
         case OP_IF:
@@ -354,5 +360,13 @@ BackendStatus_t translateAsmSTD(Backend_t *context, FILE *file) {
         PUSH 1
         RET
 */
+    fprintf(file,
+    "__TAXES:\n"
+    "   PUSH rax\n"
+    "   PUSH %lf\n"
+    "   MUL\n"
+    "   POP rax\n"
+    "   RET\n", TAX_COEFF);
+
     return BACKEND_SUCCESS;
 }
