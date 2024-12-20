@@ -34,6 +34,96 @@ static void langContextToBackend(Backend_t *context, LangContext_t *lContext) {
     context->mode            = lContext->mode;
 }
 
+/*========================Stack with local and global variables============================*/
+
+static LocalVar_t *LocalsStackTop(LocalsStack_t *stk) {
+    return (stk->size > 0) ? stk->vars + stk->size - 1 : NULL;
+}
+
+BackendStatus_t LocalsStackInit(LocalsStack_t *stk, size_t capacity) {
+    stk->capacity = capacity;
+    stk->vars = CALLOC(capacity, LocalVar_t);
+    stk->size = 0;
+    return BACKEND_SUCCESS;
+}
+
+
+BackendStatus_t LocalsStackDelete(LocalsStack_t *stk) {
+    free(stk->vars);
+    return BACKEND_SUCCESS;
+}
+
+BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id) {
+    size_t addr = 0;
+    if (stk->size > 0 && LocalsStackTop(stk)->id != FUNC_SCOPE)
+        addr = LocalsStackTop(stk)->address + 1;
+
+    stk->vars[stk->size].id = id;
+    stk->vars[stk->size].address = addr;
+
+    logPrint(L_EXTRA, 0, "Pushed variable %d to stk, addr = %d\n", id, addr);
+    stk->size++;
+    return BACKEND_SUCCESS;
+}
+
+//searches variable in stack and prints it
+BackendStatus_t LocalsStackSearchPrint(LocalsStack_t *stk, int id, Backend_t *backend, FILE *file) {
+    int idx = stk->size - 1;
+    bool local = true;
+    Identifier_t tableId = getIdFromTable(&backend->nameTable, id);
+    logPrint(L_EXTRA, 0, "Searching for %d '%s'\n", id, tableId.str);
+
+    if (tableId.type == FUNC_ID)
+        SyntaxError(backend, BACKEND_TYPE_ERROR, "Identifier %s is function\n", tableId.str);
+
+    while(idx >= 0) {
+        LocalVar_t currentVar = stk->vars[idx];
+
+        if (currentVar.id == id) {
+            logPrint(L_EXTRA, 0, "Translating id %d %s\n", id, tableId.str);
+
+            if (local)
+                fprintf(file, "[rbx + %d] ; local %s\n", currentVar.address, tableId.str);
+            else {
+                fprintf(file, "[%d] ; global %s\n", currentVar.address, tableId.str);
+            }
+            return BACKEND_SUCCESS;
+        } else if (currentVar.id == FUNC_SCOPE)
+            local = false;
+
+        idx--;
+    }
+
+    SyntaxError(backend, BACKEND_SCOPE_ERROR, "Variable %s wasn't declared at this scope\n", tableId.str);
+}
+
+BackendStatus_t LocalsStackPopScope(LocalsStack_t *stk) {
+    logPrint(L_EXTRA, 0, "Popping scope\n");
+
+    while (stk->size && LocalsStackTop(stk)->id >= 0)
+        stk->size--;
+
+    //stopped on scope separator
+    if (stk->size) stk->size--;
+
+    return BACKEND_SUCCESS;
+}
+
+BackendStatus_t LocalsStackInitScope(LocalsStack_t *stk, enum ScopeType scope) {
+    logPrint(L_EXTRA, 0, "Creating new scope %d\n", scope);
+    stk->vars[stk->size].id = scope;
+    //if it is normal scope and we have elements before, address numeration continues
+    if (scope == NORMAL_SCOPE && stk->size > 0) {
+        stk->vars[stk->size].address = stk->vars[stk->size-1].address;
+    }
+
+    stk->size++;
+
+    return BACKEND_SUCCESS;
+}
+
+/*==========================Backend===========================================================*/
+
 BackendStatus_t BackendInit(Backend_t *context, const char *inputFileName, const char *outputFileName,
                                size_t maxTokens, size_t maxNametableSize, size_t maxTotalNamesLen, int mode) {
 
@@ -45,9 +135,7 @@ BackendStatus_t BackendInit(Backend_t *context, const char *inputFileName, const
 
     context->text = readFileToStr(inputFileName);
 
-    context->globalVars = 0;
-    context->localVars = 0;
-
+    LocalsStackInit(&context->stk, LOCALS_STACK_SIZE);
     context->operatorCounter = 1;
     context->ifCounter = 1;
     context->whileCounter = 1;
@@ -66,6 +154,7 @@ BackendStatus_t BackendDelete(Backend_t *context) {
     freeMemoryArena(&context->treeMemory);
 
     NameTableDtor(&context->nameTable);
+    LocalsStackDelete(&context->stk);
     memset(context, 0, sizeof(*context));
     logPrint(L_EXTRA, 0, "Deleted backend\n");
     return BACKEND_SUCCESS;
@@ -93,6 +182,8 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
 static BackendStatus_t translateIf(Backend_t *context, FILE *file, Node_t *node) {
     assert(cmpOp(node, OP_IF));
 
+    LocalsStackInitScope(&context->stk, NORMAL_SCOPE);
+
     int currentIf = context->ifCounter++;
 
     fprintf(file, "; if %d\n; conditional part\n", currentIf);
@@ -117,6 +208,7 @@ static BackendStatus_t translateIf(Backend_t *context, FILE *file, Node_t *node)
     }
     fprintf(file,   "IF_END%d:\n", currentIf);
 
+    LocalsStackPopScope(&context->stk);
     return BACKEND_SUCCESS;
 }
 
@@ -134,11 +226,15 @@ static BackendStatus_t translateCallArguments(Backend_t *context, FILE *file, No
         }
 
         RET_ON_ERROR(translateToAsmRecursive(context, file, argNode));
-        if (context->inFunction)
+        size_t offset = argIdx;
+        if (context->stk.size > 0)
+            offset += context->stk.vars[context->stk.size-1].address + 1;
+
+        if (context->inFunction) {
             //popping arguments after the end of current frame
-            fprintf(file, "POP [rbx + %d] \n", context->localVars + argIdx);
-        else
-            fprintf(file, "POP [%d] ; global scope\n", context->globalVars + argIdx);
+            fprintf(file, "POP [rbx + %d] \n", offset);
+        } else
+            fprintf(file, "POP [%d] ; global scope\n", offset);
         argIdx++;
         node = nextNode;
     }
@@ -156,10 +252,11 @@ static BackendStatus_t translateCall(Backend_t *context, FILE *file, Node_t *nod
     if (func.type != FUNC_ID)
         SyntaxError(context, BACKEND_TYPE_ERROR, "Try to use variable %s as a function\n", func.str);
     //TODO: arguments count check
+    //TODO: free stack on calls without assignment
     if (node->right)
         RET_ON_ERROR(translateCallArguments(context, file, node->right));
 
-    size_t rbxShift = (context->inFunction) ? context->localVars : context->globalVars;
+    size_t rbxShift = (context->stk.size > 0) ? LocalsStackTop(&context->stk)->address + 1: 0;
     fprintf(file,
                 "PUSH rbx ; storing current base pointer \n"
                 "PUSH rbx + %d ; \n"
@@ -178,8 +275,8 @@ static BackendStatus_t translateFuncDecl(Backend_t *context, FILE *file, Node_t 
     assert(node);
     assert(node->value.op == OP_FUNC_DECL);
 
+    LocalsStackInitScope(&context->stk, FUNC_SCOPE);
     context->inFunction = true;
-    context->localVars = 0;
 
     const char *funcName = getIdFromTable(&context->nameTable, node->left->left->value.id).str;
     fprintf(file, "#----Translating function %s-------#\n", funcName);
@@ -193,9 +290,7 @@ static BackendStatus_t translateFuncDecl(Backend_t *context, FILE *file, Node_t 
         Identifier_t *id = context->nameTable.identifiers + argIdx;
         logPrint(L_EXTRA, 0, "Argument %p in function %s: %d %s\n", arg, funcName, argIdx, id->str);
         //writing relative address of argument variable
-        id->address = context->localVars;
-        id->local   = true;
-        context->localVars++;
+        LocalsStackPush(&context->stk, argIdx);
         arg = arg->right;
     }
 
@@ -205,6 +300,7 @@ static BackendStatus_t translateFuncDecl(Backend_t *context, FILE *file, Node_t 
     fprintf(file, "#----End of function %s------------#\n", funcName);
 
     context->inFunction = false;
+    LocalsStackPopScope(&context->stk);
     return BACKEND_SUCCESS;
 }
 
@@ -240,7 +336,7 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
 
     if (node->type == IDENTIFIER) {
         fprintf(file, "PUSH ");
-        RET_ON_ERROR(translateVariable(context, file, node));
+        RET_ON_ERROR(LocalsStackSearchPrint(&context->stk, node->value.id, context, file));
         return BACKEND_SUCCESS;
     }
 
@@ -262,17 +358,7 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
         {
             Identifier_t *id = context->nameTable.identifiers + node->left->value.id;
             fprintf(file, "; Declaring variable %s\n", id->str);
-            if (context->inFunction) {
-                id->local = true;
-                id->address = context->localVars;
-                context->localVars++;
-                fprintf(file, "; locals = %d\n", context->localVars);
-            } else {
-                id->local = false;
-                id->address = context->globalVars;
-                context->globalVars++;
-                fprintf(file, "; globals = %d\n", context->globalVars);
-            }
+            LocalsStackPush(&context->stk, node->left->value.id);
             break;
         }
         case OP_RET:
@@ -288,6 +374,7 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
             break;
         case OP_WHILE:
         {
+            LocalsStackInitScope(&context->stk, NORMAL_SCOPE);
             int currentWhile = context->whileCounter++;
 
             fprintf(file, "; LOOP %d\n; conditional part\n", currentWhile);
@@ -300,6 +387,8 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
             RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
             fprintf(file,   "\tJMP LOOP%d\n", currentWhile);
             fprintf(file,   "LOOP_END%d:\n", currentWhile);
+
+            LocalsStackPopScope(&context->stk);
             break;
         }
         case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV:
@@ -312,7 +401,7 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
         case OP_IN:
             fprintf(file, "IN\n");
             fprintf(file, "POP ");
-            RET_ON_ERROR(translateVariable(context, file, node->left));
+            RET_ON_ERROR(LocalsStackSearchPrint(&context->stk, node->left->value.id, context, file));
             break;
         case OP_OUT: case OP_SIN: case OP_COS: case OP_SQRT:
             RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
@@ -321,7 +410,7 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
         case OP_ASSIGN:
             RET_ON_ERROR(translateToAsmRecursive(context, file, node->right));
             fprintf(file, "POP ");
-            RET_ON_ERROR(translateVariable(context, file, node->left));
+            RET_ON_ERROR(LocalsStackSearchPrint(&context->stk, node->left->value.id, context, file));
             break;
         default:
             logPrint(L_ZERO, 1, "Backend: Operator %d (%s) isn't supported yet\n", node->value.op, operators[node->value.op].dotStr);

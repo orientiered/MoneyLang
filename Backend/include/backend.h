@@ -3,6 +3,26 @@
 
 #include "Context.h"
 
+typedef struct LocalVar_t {
+    int id;
+    unsigned address;
+} LocalVar_t;
+
+typedef struct LocalsStack_t {
+    LocalVar_t *vars;
+    size_t size;
+    size_t capacity;
+} LocalsStack_t;
+
+typedef enum BackendStatus_t {
+    BACKEND_SUCCESS,
+    BACKEND_IR_ERROR,
+    BACKEND_FILE_ERROR,
+    BACKEND_WRITE_ERROR,
+    BACKEND_TYPE_ERROR,
+    BACKEND_SCOPE_ERROR,
+} BackendStatus_t;
+
 typedef struct BackendContext_t {
     const char *inputFileName;
     const char *outputFileName;
@@ -14,27 +34,37 @@ typedef struct BackendContext_t {
     Node_t *tree;
 
     int mode;
+
+    LocalsStack_t stk;
     bool inFunction;
-    size_t globalVars;
-    size_t localVars;
     int operatorCounter;
     int ifCounter;
     int whileCounter;
 } Backend_t;
 
-typedef enum BackendStatus_t {
-    BACKEND_SUCCESS,
-    BACKEND_IR_ERROR,
-    BACKEND_FILE_ERROR,
-    BACKEND_WRITE_ERROR,
-    BACKEND_TYPE_ERROR,
-    BACKEND_SCOPE_ERROR,
-} BackendStatus_t;
 
 typedef enum BackendMode_t {
     BACKEND_SIMPLE = 0,
     BACKEND_TAXES = 1
 } BackendMode_t;
+
+BackendStatus_t LocalsStackInit(LocalsStack_t *stk, size_t capacity);
+BackendStatus_t LocalsStackDelete(LocalsStack_t *stk);
+
+enum ScopeType {
+    FUNC_SCOPE = -1,
+    NORMAL_SCOPE = -2
+};
+
+BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id);
+//searches variable in stack and prints it
+BackendStatus_t LocalsStackSearchPrint(LocalsStack_t *stk, int id, Backend_t *backend, FILE *file);
+BackendStatus_t LocalsStackPopScope(LocalsStack_t *stk);
+BackendStatus_t LocalsStackInitScope(LocalsStack_t *stk, enum ScopeType scope);
+
+const size_t LOCALS_STACK_SIZE = 128;
+
+
 
 const double TAX_COEFF = 0.8;
 
