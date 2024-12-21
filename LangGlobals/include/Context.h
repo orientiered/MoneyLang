@@ -154,7 +154,8 @@ typedef struct Node_t {
 typedef struct Token_t {
     Node_t node;
 
-    size_t line;        ///< Position of token in code
+    const char *pos;    ///< Pointer to position of token
+    size_t line;        ///< Line and column of token
     size_t column;
 } Token_t;
 

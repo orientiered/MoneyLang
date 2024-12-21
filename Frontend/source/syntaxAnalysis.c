@@ -86,6 +86,20 @@ static bool cmpOp(const Token_t *token, enum OperatorType op) {
     return (token->node.type == OPERATOR) && (token->node.value.op == op);
 }
 
+void printPositionInText(Token_t *token) {
+    const char *line = token->pos;
+    line -= token->column - 1;
+    while (*line != '\n') {
+        logPrint(L_ZERO, 1, "%c", *line);
+        line++;
+    }
+    logPrint(L_ZERO, 1, "\n");
+    for (unsigned idx = 0; idx < token->column - 2; idx++) {
+        logPrint(L_ZERO, 1, " ");
+    }
+    logPrint(L_ZERO, 1, "^^^\n");
+}
+
 static Node_t *GetGrammar(ParseContext_t *context, LangContext_t *frontend) {
     context->status = PARSE_SUCCESS;
 
@@ -346,10 +360,8 @@ static Node_t *GetBlock(ParseContext_t *context, LangContext_t *frontend) {
         context->pointer++;
 
         Node_t *val = GetBlock(context, frontend);
-        if (!SUCCESS) {
-            context->status = HARD_ERROR;
-            return NULL;
-        }
+        if (!SUCCESS)
+            SyntaxError(context, frontend, NULL, "Expected code block after '<'\n");
 
         Node_t *current = val;
 
@@ -615,12 +627,11 @@ static Node_t *GetExpr(ParseContext_t *context, LangContext_t *frontend) {
         Node_t *op = &context->pointer->node;
 
         context->pointer++;
-        Token_t *lastToken = context->pointer;
 
         Node_t *right = GetAddPr(context, frontend);
 
-        if (context->status != PARSE_SUCCESS)
-            SyntaxTokenError(lastToken, frontend, NULL, "Expected expression after > or <\n");
+        if (!SUCCESS)
+            SyntaxError(context, frontend, NULL, "Expected expression after > or <\n");
 
         op->left = left;
         op->right = right;
@@ -645,13 +656,11 @@ static Node_t *GetAddPr(ParseContext_t *context, LangContext_t *frontend) {
         Node_t *op = &context->pointer->node;
 
         context->pointer++;
-        Token_t *lastToken = context->pointer;
 
         Node_t *right = GetMulPr(context, frontend);
 
-        if (context->status != PARSE_SUCCESS) {
-            SyntaxTokenError(lastToken, frontend, NULL, "Expected expression after + or - \n");
-        }
+        if (!SUCCESS)
+            SyntaxError(context, frontend, NULL, "Expected expression after + or - \n");
 
         op->left = left;
         op->right = right;
@@ -669,20 +678,18 @@ static Node_t *GetMulPr(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
 
     Node_t *left = GetPowPr(context, frontend);
-    if (context->status != PARSE_SUCCESS)
+    if (!SUCCESS)
         return left;
 
     while (cmpOp(context->pointer, OP_MUL) || cmpOp(context->pointer, OP_DIV)) {
         Node_t *op = &context->pointer->node;
 
         context->pointer++;
-        Token_t *lastToken = context->pointer;
 
         Node_t *right = GetPowPr(context, frontend);
 
-        if (context->status != PARSE_SUCCESS) {
-            SyntaxTokenError(lastToken, frontend, NULL, "Expected expression after * or /\n");
-        }
+        if (!SUCCESS)
+            SyntaxError(context, frontend, NULL, "Expected expression after * or /\n");
 
         op->left = left;
         op->right = right;
@@ -701,18 +708,16 @@ static Node_t *GetPowPr(ParseContext_t *context, LangContext_t *frontend) {
     LOG_ENTRY();
 
     Node_t *left = GetPrimary(context, frontend);
-    if (context->status != PARSE_SUCCESS)
+    if (!SUCCESS)
         return left;
 
     if (cmpOp(context->pointer, OP_POW)) {
         Node_t *op = &context->pointer->node;
         context->pointer++;
 
-        Token_t *lastToken = context->pointer;
-
         Node_t *right = GetPowPr(context, frontend);
-        if (context->status != PARSE_SUCCESS)
-            SyntaxTokenError(lastToken, frontend, NULL, "Expected expression after ^\n");
+        if (!SUCCESS)
+            SyntaxError(context, frontend, NULL, "Expected expression after ^\n");
 
         op->left = left;
         op->right = right;
@@ -725,10 +730,12 @@ static Node_t *GetPowPr(ParseContext_t *context, LangContext_t *frontend) {
     return left;
 }
 
+/// @brief Get chain of identifier or expression connected with ,
 // if expr == false, looks for chain of identifiers
 static Node_t *GetIdOrExprChain(ParseContext_t *context, LangContext_t *frontend, bool expr, size_t *argsCount) {
     LOG_ENTRY();
 
+    //function to get next identifier or expression
     Node_t *(*getter)(ParseContext_t *context, LangContext_t *frontend) =
         expr ? GetExpr : GetIdentifier;
 

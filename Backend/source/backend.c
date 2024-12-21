@@ -350,27 +350,6 @@ static BackendStatus_t translateFuncDecl(Backend_t *context, FILE *file, Node_t 
     return BACKEND_SUCCESS;
 }
 
-//! DEPRECATED
-static BackendStatus_t translateVariable(Backend_t *context, FILE *file, Node_t *node) {
-    Identifier_t id = getIdFromTable(&context->nameTable, node->value.id);
-    if (id.type == UNDEFINED_ID)
-        SyntaxError(context, BACKEND_TYPE_ERROR, "Identifier %s wasn't declared\n", id.str);
-    if (id.type == FUNC_ID)
-        SyntaxError(context, BACKEND_TYPE_ERROR, "Identifier %s is function name\n", id.str);
-
-    logPrint(L_EXTRA, 0, "Translating id %d %s\n", node->value.id, id.str);
-    if (!id.local) {
-        logPrint(L_EXTRA, 0, "\tGlobal id\n");
-        fprintf(file, "[%d]       ; %s\n", id.address, id.str);
-    } else {
-        logPrint(L_EXTRA, 0, "\tLocal id\n");
-        if (!context->inFunction)
-            SyntaxError(context, BACKEND_SCOPE_ERROR, "Try to use local variable in global scope\n");
-        fprintf(file, "[rbx + %d] ; local %s\n", id.address, id.str);
-    }
-    return BACKEND_SUCCESS;
-}
-
 static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, Node_t *node) {
     assert(context);
     assert(file);

@@ -106,6 +106,7 @@ FrontendStatus_t lexicalAnalysis(LangContext_t *context) {
 
     const char *curStr = context->text;
     size_t curLine = 1, curCol = 1;
+
     Token_t *tokens = (Token_t *) context->treeMemory.base;
     size_t tokenIdx = 0;
     size_t capacity = context->treeMemory.capacity;
@@ -135,9 +136,9 @@ FrontendStatus_t lexicalAnalysis(LangContext_t *context) {
     while (*curStr) {
 
         //filling position of token
-        token.line = curLine;
+        token.line   = curLine;
         token.column = curCol;
-
+        token.pos    = curStr;
         // all numbers must start with digit
         if (isdigit(*curStr)) {
             char *nextPosition = NULL;
@@ -182,12 +183,15 @@ FrontendStatus_t lexicalAnalysis(LangContext_t *context) {
 
     }
 
-    token.line = curLine;
+    token.line   = curLine;
     token.column = curCol;
+    token.pos    = curStr;
 
     token.node.type = OPERATOR;
     token.node.value.op = OP_EOF;
 
+    //Telling MemoryArena how much memory was used
+    context->treeMemory.current = tokens + tokenIdx + 1;
     return FRONTEND_SUCCESS;
 }
 

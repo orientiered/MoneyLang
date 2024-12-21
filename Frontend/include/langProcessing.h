@@ -59,25 +59,19 @@ String     ::=[^"]
 Num    ::= [number][₽$]
 */
 
+void printPositionInText(Token_t *token);
+
 #define SyntaxError(context, frontend, ret, ...)                            \
     do {                                                                    \
+        /*skipping error, because status is already set*/                   \
+        if (context->status == HARD_ERROR) return ret;                      \
         context->status = HARD_ERROR;                                       \
         logPrint(L_ZERO, 1, "Error while parsing context[%p]\n", context);  \
         logPrint(L_ZERO, 1, "Current position: %s:%d:%d\n",                 \
             frontend->inputFileName, context->pointer->line, context->pointer->column);  \
+        printPositionInText(context->pointer);                              \
         logPrint(L_ZERO, 1, __VA_ARGS__);                                   \
         return ret;                                                         \
     } while(0)
-
-#define SyntaxTokenError(token, frontend, ret, ...)                         \
-    do {                                                                    \
-        context->status = HARD_ERROR;                                       \
-        logPrint(L_ZERO, 1, "Error while parsing\n");                       \
-        logPrint(L_ZERO, 1, "Current position: %s:%d:%d\n",                 \
-            frontend->inputFileName, token->line, token->column);           \
-        logPrint(L_ZERO, 1, __VA_ARGS__);                                   \
-        return ret;                                                         \
-    } while(0)
-
 
 #endif
