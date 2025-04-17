@@ -86,15 +86,20 @@ static bool cmpOp(const Token_t *token, enum OperatorType op) {
     return (token->node.type == OPERATOR) && (token->node.value.op == op);
 }
 
-void printPositionInText(Token_t *token) {
+void printPositionInText(ParseContext_t *context) {
+
+    Token_t *token = context->pointer;
+    if (context->pointer > context->text) token = context->pointer - 1; // if possible, showing previous token
+
     const char *line = token->pos;
-    line -= token->column - 1;
-    while (*line != '\n') {
+    if (token->column > 0)
+        line -= token->column - 1;
+    while (*line != '\n' && *line) {
         logPrint(L_ZERO, 1, "%c", *line);
         line++;
     }
     logPrint(L_ZERO, 1, "\n");
-    for (unsigned idx = 0; idx < token->column - 2; idx++) {
+    for (int idx = 0; idx < (int)token->column - 2; idx++) {
         logPrint(L_ZERO, 1, " ");
     }
     logPrint(L_ZERO, 1, "^^^\n");
@@ -137,7 +142,8 @@ static Node_t *GetGrammar(ParseContext_t *context, LangContext_t *frontend) {
         context->pointer++;
         return val;
     } else {
-        SyntaxError(context, frontend, NULL, "GetGrammar: Expected EOF\n");
+        SyntaxError(context, frontend, NULL, "GetGrammar: Expected EOF\n"
+                                             "Probably you have misspelled language keyword\n");
     }
 }
 

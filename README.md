@@ -5,13 +5,15 @@
 1. [MoneyLang syntax](#language-syntax)
 2. [Compilation](#compilation-and-usage)
 3. [Frontend](#frontend)
-3. [$\text{Frontend}^{-1}$](#reverse-frontend)
+3. [Reverse frontend](#reverse-frontend)
 4. [Middle-end](#middle-end)
 5. [Backend](#backend)
 
 ## Language syntax
 
 ### Code example: calculate factorial of given number
+
+[fact.mpp](examples/fact.mpp)
 
 ```
 @ Creating variable a (all values are fixed-point floats)
@@ -39,6 +41,9 @@ Invest a %
 @ Print value to standard output
 ShowBalance fact(a) %
 ```
+
+See other examples in `examples` folder
+
 ### EBNF parsing rules:
 ```
 Grammar::= [FunctionDecl | Block ]+ EOF

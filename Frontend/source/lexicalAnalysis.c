@@ -40,7 +40,7 @@ static size_t readLexemToBuffer(char *buffer, const char **str, size_t *col, boo
     //[any symbol that is not alpha, num, space, COMMENT_START_SYMBOL, ()]+
     //TODO: rewrite this code, too ambiguous
     if (previousIsQuote) {
-        while (**str != '\"') {
+        while (**str && **str != '\"') {
             *(buffer++) = *((*str)++);
             (*col)++;
             len++;
