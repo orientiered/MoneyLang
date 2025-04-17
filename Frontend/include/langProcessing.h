@@ -30,12 +30,12 @@ Grammar::= [FunctionDecl | Block ]+ EOF
 FunctionDecl::= "Transaction" IdChain '->' Identifier '->' Block
 Block  ::= "<" Block+ ">" | Statement
 Statement ::= [Input | Print | Pay | Text | VarDecl | FunctionCall | Assignment] % | If | While
-Text   ::= "Txt"  \"String\"
+Text   ::= "Txt"  '"'String'"'
 If     ::= "if" Expr -> Block Else?
 Else   ::= "else" BLock
 While  ::= "while" Expr -> Block
 Print  ::= "ShowBalance" Expr
-Pay    ::= "Pay Expr
+Pay    ::= "Pay" Expr
 Input  ::= "Invest" Identifier
 VarDecl ::= "Account" Identifier
 Assignment ::= Identifier '=' Expr
