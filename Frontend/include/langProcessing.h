@@ -59,7 +59,7 @@ String     ::=[^"]
 Num    ::= [number][₽$]
 */
 
-void printPositionInText(Token_t *token);
+void printPositionInText(ParseContext_t *context);
 
 #define SyntaxError(context, frontend, ret, ...)                            \
     do {                                                                    \
@@ -69,7 +69,7 @@ void printPositionInText(Token_t *token);
         logPrint(L_ZERO, 1, "Error while parsing context[%p]\n", context);  \
         logPrint(L_ZERO, 1, "Current position: %s:%d:%d\n",                 \
             frontend->inputFileName, context->pointer->line, context->pointer->column);  \
-        printPositionInText(context->pointer);                              \
+        printPositionInText(context);                                       \
         logPrint(L_ZERO, 1, __VA_ARGS__);                                   \
         return ret;                                                         \
     } while(0)

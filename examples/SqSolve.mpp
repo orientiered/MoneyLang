@@ -1,0 +1,57 @@
+
+Main()%
+
+Transaction -> Main ->
+<
+    Account x %
+    Account y %
+    Account z %
+
+    Invest x %
+    Invest y %
+    Invest z %
+
+    Solve(x, y, z) %
+>
+
+Transaction a, b, c -> Solve ->
+<
+    if a === 0₽ ->
+    <
+        Linear(b, c)%
+        Pay 0₽%
+    >
+
+    Account discr %
+    discr = b*b - 4₽ * a *c %
+    if discr < 0₽ ->
+    <
+        Txt "Discriminant < 0" %
+        Pay 0₽ %
+    >
+    discr = sqrt(discr) %
+    Txt "x1 = " %
+    ShowBalance (0₽-b + discr) / (2₽*a) %
+    Txt "x2 = " %
+    ShowBalance (0₽-b - discr) / (2₽*a) %
+
+    Pay 0₽ %
+>
+
+Transaction d, e -> Linear ->
+<
+    if d === 0₽ ->
+    <
+        if e === 0₽ ->
+        <
+            Txt "Any number"%
+
+        > else <
+            Txt "No solutions" %
+        >
+    > else <
+        Txt "x = "%
+        ShowBalance (0₽-e)/d%
+    >
+    Pay 0₽%
+>

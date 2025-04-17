@@ -13,6 +13,8 @@
 
 ### Code example: calculate factorial of given number
 
+[fact.mpp](examples/fact.mpp)
+
 ```
 @ Creating variable a (all values are fixed-point floats)
 Account a %
@@ -39,6 +41,9 @@ Invest a %
 @ Print value to standard output
 ShowBalance fact(a) %
 ```
+
+See other examples in `examples` folder
+
 ### EBNF parsing rules:
 ```
 Grammar::= [FunctionDecl | Block ]+ EOF
