@@ -1,0 +1,111 @@
+
+First version, numbers are integers
+[] Change numbers to fixed point floats
+[] Probably i can reduce push/pop count by using instructions that work with memory
+
+
+---------------------------------------------------------------------------
+Immediate
+
+push <val>
+
+Variable
+
+push [addr]
+
+
+---------------------------------------------------------------------------
+"ADD", SUB, MUL, DIV,
+movq  xmm0, [rsp + 8]
+addsd xmm0, [rsp]
+/*
+        subsd  xmm0, [rsp]
+        mulsd  xmm0, [rsp]
+        divsd  xmm0, [rsp]
+        sqrtsd xmm0, [rsp]
+*/
+sub   rsp, 8
+movq [rsp], xmm0
+
+SQRT
+movq xmm0, [rsp]
+sqrtsd xmm0
+movq [rsp], xmm0
+
+{OP_POW , "POW" },
+{OP_SIN , "SIN" },
+{OP_COS , "COS" },
+{OP_TAN , "TAN" },
+
+---------------------------------------------------------------------------
+
+{OP_LABRACKET, "LESS" }
+movq xmm0, [rsp + 8]
+cmpltsd xmm0, [rsp]
+// greater cmpgtsd xmm0, [rsp]
+// >=      cmpgesd xmm0, [rsp]
+// <=      cmplesd xmm0, [rsp]
+// ==      cmpeqsd xmm0, [rsp]
+// !=      cmpneqsd xmm0, [rsp]
+sub   rsp, 8
+movq  [rsp], xmm0
+and   QWORD PTR [rsp], 0x3FF0000000000000 // 1.0
+
+{OP_IN,        "IN"},
+call __scanNumber // this function lefts result in stack
+
+{OP_OUT,       "OUT"},
+call __printNumber // argument is on stack
+
+{OP_TEXT,      "TEXT"},
+// currently without .data section
+jmp rip+<text_len>
+db .text_k "text_string\n"
+// do write syscall
+
+{OP_ASSIGN,    "ASSIGN"},
+movq xmm0, [rsp]
+sub  rsp, 8
+movq [rsp], xmm0
+
+{OP_IF,        "IF" },
+pop  rdi
+test rdi, rdi
+jz  IF_END
+
+
+
+IF_END:
+
+{OP_ELSE,      "ELSE"},
+pop rdi
+test rdi, rdi
+jz ELSE_BRANCH
+
+
+jmp IF_END
+ELSE_BRANCH:
+
+
+
+
+IF_END:
+
+{OP_WHILE,     "WHILE"},
+jmp WHILE_MIDDLE
+WHILE_LOOP:
+    <loop body>
+    WHILE_MIDDLE:
+    <condition>
+    pop rdi
+    test rdi, rdi
+    jnz WHILE_LOOP
+
+{OP_SEP,       "SEP"},
+{OP_COMMA,     "ARG_SEP"},
+
+{OP_VAR_DECL,  "VAR"},
+{OP_FUNC_DECL, "DEF"},
+{OP_CALL,      "CALL"},
+{OP_RET,       "RET"},
+{OP_FUNC_HEADER, "FUNC_HDR"}
