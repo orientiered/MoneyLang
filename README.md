@@ -126,7 +126,7 @@ Num    ::= [number][₽$]
 ```bash
     ./front.out program.mpp -o program.ast
 ```
-High-level language code is parsed using recursive descent algorithm and converted to abstract syntax tree. Correspondence between operators and strings in AST is given by `IRNames` array in [Context.h](LangGlobals/include/Context.h).
+High-level language code is parsed using recursive descent algorithm and converted to abstract syntax tree. Correspondence between operators and strings in AST is given by ASTNames` array in [Context.h](LangGlobals/include/Context.h).
 
 ## Reverse-frontend
 
@@ -137,7 +137,7 @@ You could convert AST back to source code. Note: all comments will be lost. This
 
 ## Middle-end
 
-There's no middle-end which optimizes code, but you can use [crefr's](https://github.com/crefr/language) one, because IR is compatible.
+There's no middle-end which optimizes code, but you can use [crefr's](https://github.com/crefr/language) one, because AST is compatible.
 
 ## Backend
 

@@ -30,7 +30,7 @@ int main(int argc, const char *argv[]) {
 
     registerFlag(TYPE_BLANK,  "- ", "--taxes", "Enables taxing in return operators");
 
-    enableHelpFlag("Money language backend: transform IR files to SPU asm\n");
+    enableHelpFlag("Money language backend: transform AST files to SPU asm\n");
 
     if (processArgs(argc, argv) != ARGV_SUCCESS) {
         return ARGV_EXIT_CODE;

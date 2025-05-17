@@ -19,7 +19,7 @@ int main(int argc, const char *argv[]) {
     setLogLevel(L_EXTRA);
     logDisableBuffering();
 
-    registerFlag(TYPE_BLANK,  "-1", "-1",       "Translate IR to program");
+    registerFlag(TYPE_BLANK,  "-1", "-1",       "Translate AST to program");
     registerFlag(TYPE_STRING, "-i", "--input",  "Input file");
     registerFlag(TYPE_STRING, "-o", "--output", "Output file");
 

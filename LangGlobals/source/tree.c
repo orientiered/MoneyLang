@@ -181,25 +181,25 @@ static void printTabulation(FILE* file, unsigned tabs) {
         putc('\t', file);
 }
 
-static const char *getIRString(size_t id) {
-    for (size_t idx = 0; idx < ARRAY_SIZE(IRNames); idx++) {
-        if (IRNames[idx].opCode == id)
-            return IRNames[idx].name;
+static const char *getASTString(size_t id) {
+    for (size_t idx = 0; idx < ARRAY_SIZE(ASTNames); idx++) {
+        if (ASTNames[idx].opCode == id)
+            return ASTNames[idx].name;
     }
     return NULL;
 }
 
-static int getOpCode(const char *IRString) {
-    for (size_t idx = 0; idx < ARRAY_SIZE(IRNames); idx++) {
-        if (strcmp(IRNames[idx].name, IRString) == 0)
-            return IRNames[idx].opCode;
+static int getOpCode(const char *ASTString) {
+    for (size_t idx = 0; idx < ARRAY_SIZE(ASTNames); idx++) {
+        if (strcmp(ASTNames[idx].name, ASTString) == 0)
+            return ASTNames[idx].opCode;
     }
 
     return -1;
 }
 
 
-IRStatus_t writeTreeToIR(Node_t *node, FILE *file, unsigned tabulation) {
+ASTStatus_t writeTreeToAST(Node_t *node, FILE *file, unsigned tabulation) {
 
     printTabulation(file, tabulation);
     fprintf(file, "{");
@@ -214,11 +214,11 @@ IRStatus_t writeTreeToIR(Node_t *node, FILE *file, unsigned tabulation) {
                 break;
             case OPERATOR:
             {
-                const char *IRString = getIRString(node->value.op);
-                fprintf(file, "OPR:%s\n", IRString);
+                const char *ASTString = getASTString(node->value.op);
+                fprintf(file, "OPR:%s\n", ASTString);
 
-                writeTreeToIR(node->left,  file, tabulation + 1);
-                writeTreeToIR(node->right, file, tabulation + 1);
+                writeTreeToAST(node->left,  file, tabulation + 1);
+                writeTreeToAST(node->right, file, tabulation + 1);
 
                 printTabulation(file, tabulation);
                 break;
@@ -231,11 +231,11 @@ IRStatus_t writeTreeToIR(Node_t *node, FILE *file, unsigned tabulation) {
 
     fprintf(file, "}\n");
 
-    return IR_SUCCESS;
+    return AST_SUCCESS;
 }
 
 
-IRStatus_t writeAsIR(LangContext_t *context) {
+ASTStatus_t writeAsAST(LangContext_t *context) {
     assert(context);
     assert(context->tree);
     assert(context->outputFileName);
@@ -243,31 +243,31 @@ IRStatus_t writeAsIR(LangContext_t *context) {
     FILE *file = fopen(context->outputFileName, "w");
     if (!file) {
         logPrint(L_ZERO, 1, "Can't open file '%s' for writing\n", context->outputFileName);
-        return IR_FILE_ERROR;
+        return AST_FILE_ERROR;
     }
 
-    fprintf(file, IR_SIGNATURE_STRING "%d\n", IR_FORMAT_VERSION);
+    fprintf(file, AST_SIGNATURE_STRING "%d\n", AST_FORMAT_VERSION);
 
     NameTableWrite(&context->nameTable, file);
     fprintf(file, "\n");
-    writeTreeToIR(context->tree, file, 0);
+    writeTreeToAST(context->tree, file, 0);
     fprintf(file, "\n");
     fclose(file);
 
-    return IR_SUCCESS;
+    return AST_SUCCESS;
 }
 
 /*================PREFIX TREE FORMAT PARSING==============================*/
 static bool readSignature(LangContext_t *context, const char **text) {
     int shift = 0;
-    int IRVersion = 0;
-    if (sscanf(*text, IR_SIGNATURE_STRING "%d%n", &IRVersion, &shift) != 1) {
+    int ASTVersion = 0;
+    if (sscanf(*text, AST_SIGNATURE_STRING "%d%n", &ASTVersion, &shift) != 1) {
         logPrint(L_ZERO, 1, "Wrong signature format\n");
         return false;
     }
 
-    if (IRVersion != IR_FORMAT_VERSION) {
-        logPrint(L_ZERO, 1, "Incorrect format version: expected %d, got %d\n", IR_FORMAT_VERSION, IRVersion);
+    if (ASTVersion != AST_FORMAT_VERSION) {
+        logPrint(L_ZERO, 1, "Incorrect format version: expected %d, got %d\n", AST_FORMAT_VERSION, ASTVersion);
         return false;
     }
 
@@ -276,21 +276,21 @@ static bool readSignature(LangContext_t *context, const char **text) {
     return true;
 }
 
-IRStatus_t readFromIR(LangContext_t *context) {
+ASTStatus_t readFromAST(LangContext_t *context) {
     const char *text = context->text;
 
     if (!readSignature(context, &text))
-        return IR_SIGNATURE_ERROR;
+        return AST_SIGNATURE_ERROR;
 
     if (NameTableRead(&context->nameTable, &text) != NAMETABLE_SUCCESS)
-        return IR_SYNTAX_ERROR;
+        return AST_SYNTAX_ERROR;
 
-    Node_t *tree = readTreeFromIR(context, NULL, &text);
+    Node_t *tree = readTreeFromAST(context, NULL, &text);
     if (!tree)
-        return IR_SYNTAX_ERROR;
+        return AST_SYNTAX_ERROR;
 
     context->tree = tree;
-    return IR_SUCCESS;
+    return AST_SUCCESS;
 }
 
 static enum ElemType getNodeType(const char *nodeTypeStr) {
@@ -308,7 +308,7 @@ static enum ElemType getNodeType(const char *nodeTypeStr) {
 }
 
 #define MOVE_TEXT do {*text += shift; shift = 0;} while(0)
-Node_t *readTreeFromIR(LangContext_t *context, Node_t *parent, const char **text) {
+Node_t *readTreeFromAST(LangContext_t *context, Node_t *parent, const char **text) {
     // if (context->mode != FRONTEND_BACKWARD) {
     //     logPrint(L_ZERO, 1, "Wrong frontend mode\n");
     //     return NULL;
@@ -321,7 +321,7 @@ Node_t *readTreeFromIR(LangContext_t *context, Node_t *parent, const char **text
         return NULL;
     }
 
-    char buffer[IR_BUFFER_SIZE] = "";
+    char buffer[AST_BUFFER_SIZE] = "";
     sscanf(*text, " { %[^:]:%n", buffer, &shift);
     if (shift == 0) {
         logPrint(L_ZERO, 1, "Wrong format: expected { at '%.15s'\n", *text);
@@ -332,7 +332,7 @@ Node_t *readTreeFromIR(LangContext_t *context, Node_t *parent, const char **text
 
     Node_t *node = getEmptyNode(context);
     if (!node) {
-        logPrint(L_EXTRA, 1, "Can't allocate node in readTreeFromIR\n");
+        logPrint(L_EXTRA, 1, "Can't allocate node in readTreeFromAST\n");
         return NULL;
     }
 
@@ -372,10 +372,10 @@ Node_t *readTreeFromIR(LangContext_t *context, Node_t *parent, const char **text
             node->value.op = (enum OperatorType) opCode;
 
             logPrint(L_EXTRA, 0, "Scanning left subtree: '%.20s'\n", *text);
-            node->left  = readTreeFromIR(context, node, text);
+            node->left  = readTreeFromAST(context, node, text);
 
             logPrint(L_EXTRA, 0, "Scanning right subtree: '%.20s'\n", *text);
-            node->right = readTreeFromIR(context, node, text);
+            node->right = readTreeFromAST(context, node, text);
 
             break;
         }

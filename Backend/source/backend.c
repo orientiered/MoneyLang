@@ -163,9 +163,9 @@ BackendStatus_t BackendDelete(Backend_t *context) {
 BackendStatus_t BackendRun(Backend_t *context) {
     LangContext_t lContext = {0};
     backendToLangContext(&lContext, context);
-    IRStatus_t irStatus = readFromIR(&lContext);
-    if (irStatus != IR_SUCCESS)
-        return BACKEND_IR_ERROR;
+    ASTStatus_t astStatus = readFromAST(&lContext);
+    if (astStatus != AST_SUCCESS)
+        return BACKEND_AST_ERROR;
 
     langContextToBackend(context, &lContext);
     DUMP_TREE(&lContext, context->tree, 0);

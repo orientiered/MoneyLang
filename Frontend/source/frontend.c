@@ -264,17 +264,17 @@ FrontendStatus_t programToTree(LangContext_t *context) {
         return status;
     DUMP_TREE(context, context->tree, 0);
 
-    IRStatus_t irStatus = writeAsIR(context);
-    if (irStatus != IR_SUCCESS)
-        return FRONTEND_IR_ERROR;
+    ASTStatus_t astStatus = writeAsAST(context);
+    if (astStatus != AST_SUCCESS)
+        return FRONTEND_AST_ERROR;
 
     return FRONTEND_SUCCESS;
 }
 
 FrontendStatus_t treeToProgram(LangContext_t *context) {
-    IRStatus_t irStatus = readFromIR(context);
-    if (irStatus != IR_SUCCESS)
-        return FRONTEND_IR_ERROR;
+    ASTStatus_t astStatus = readFromAST(context);
+    if (astStatus != AST_SUCCESS)
+        return FRONTEND_AST_ERROR;
 
     DUMP_TREE(context, context->tree, 0);
 

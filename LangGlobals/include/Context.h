@@ -14,9 +14,9 @@ const char * const FUNC_ID_COLOR        = "#24e658";
 const char * const NUMBER_COLOR         = "#107980";
 const char * const DEFAULT_NODE_COLOR   = "#000000";
 const size_t DUMP_BUFFER_SIZE = 128;
-const size_t IR_BUFFER_SIZE = 64;
-#define IR_SIGNATURE_STRING "IR312:"
-const int IR_FORMAT_VERSION = 1;
+const size_t  AST_BUFFER_SIZE = 64;
+#define AST_SIGNATURE_STRING "IR312:"
+const int AST_FORMAT_VERSION = 1;
 
 enum ElemType {
     OPERATOR,
@@ -173,12 +173,12 @@ typedef struct {
     int mode; /// 0 frontend 1 inverse frontend
 } LangContext_t;
 
-typedef struct IRName_t {
+typedef struct ASTName_t {
     enum OperatorType opCode;
     const char *name;
-} IRName_t;
+} ASTName_t;
 
-const IRName_t IRNames[] = {
+const ASTName_t ASTNames[] = {
     {OP_ADD , "ADD" },
     {OP_SUB , "SUB" },
     {OP_MUL , "MUL" },
@@ -215,13 +215,13 @@ const IRName_t IRNames[] = {
     {OP_FUNC_HEADER, "FUNC_HDR"}
 };
 
-typedef enum IRStatus_t {
-    IR_SUCCESS,
-    IR_MEMORY_ERROR,
-    IR_FILE_ERROR,
-    IR_SIGNATURE_ERROR,
-    IR_SYNTAX_ERROR
-} IRStatus_t;
+typedef enum ASTStatus_t {
+    AST_SUCCESS,
+    AST_MEMORY_ERROR,
+    AST_FILE_ERROR,
+    AST_SIGNATURE_ERROR,
+    AST_SYNTAX_ERROR
+} ASTStatus_t;
 
 /*==========================Old functions for tree========================*/
 Node_t *createNode(enum ElemType type, int iVal, double dVal, Node_t *left, Node_t *right);
@@ -236,13 +236,13 @@ bool deleteTree(Node_t *node);
 Node_t *getEmptyNode(LangContext_t *context);
 
 
-/*============================IR reading and writing======================================*/
+/*============================AST reading and writing======================================*/
 
-IRStatus_t readFromIR(LangContext_t *context);
-IRStatus_t writeAsIR(LangContext_t *context);
+ASTStatus_t readFromAST(LangContext_t *context);
+ASTStatus_t writeAsAST(LangContext_t *context);
 
-Node_t *readTreeFromIR(LangContext_t *context, Node_t *parent, const char **text);
-IRStatus_t writeTreeToIR(Node_t *node, FILE *file, unsigned tabulation);
+Node_t *readTreeFromAST(LangContext_t *context, Node_t *parent, const char **text);
+ASTStatus_t writeTreeToAST(Node_t *node, FILE *file, unsigned tabulation);
 
 /*==================================================================*/
 /// @brief Dump tree using graphviz

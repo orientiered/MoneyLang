@@ -1,6 +1,11 @@
 #ifndef BACKEND_H
 #define BACKEND_H
 
+#include <stdint.h>
+#include <stdlib.h>
+
+#include "utils.h"
+#include "nameTable.h"
 #include "Context.h"
 
 typedef struct LocalVar_t {
@@ -16,12 +21,90 @@ typedef struct LocalsStack_t {
 
 typedef enum BackendStatus_t {
     BACKEND_SUCCESS,
-    BACKEND_IR_ERROR,
+    BACKEND_AST_ERROR,
     BACKEND_FILE_ERROR,
     BACKEND_WRITE_ERROR,
     BACKEND_TYPE_ERROR,
     BACKEND_SCOPE_ERROR,
+    BACKEND_ERROR
 } BackendStatus_t;
+
+typedef enum BackendMode_t {
+    BACKEND_SIMPLE = 0,
+    BACKEND_TAXES = 1
+} BackendMode_t;
+
+/* ============= Intermediate representation ======================== */
+// IR for stack-based operations
+
+typedef enum {
+    IR_NOP, ///< use for commentaries
+    // binary arithmetical operations
+    IR_ADD,
+    IR_SUB,
+    IR_MUL,
+    IR_DIV,
+    // unary arithmetical operations
+    IR_SQRT,
+    // comparison operations
+    IR_CMPLT,
+    IR_CMPGT,
+    IR_CMPLE,
+    IR_CMPGE,
+    IR_CMPEQ,
+    IR_CMPNEQ,
+    // assign
+    IR_ASSIGN, //? Maybe redundant
+    IR_PUSH,
+    IR_POP,
+    // control flow
+    IR_JMP,
+    IR_JZ,
+    IR_CALL,
+    IR_RET,
+    // IR_ENTER,
+    // IR_LEAVE,
+    IR_EXIT
+
+} IRNodeType_t;
+
+enum IRPushPopType {
+    PUSH_IMM,
+    PUSH_MEM,
+    PUSH_REG,
+    POP_MEM
+};
+
+typedef struct {
+    int64_t offset;
+} IRaddr_t;
+
+typedef struct {
+    IRNodeType_t    type;
+    union {
+        double dval;
+        IRaddr_t addr;
+    };
+    enum IRPushPopType extra;
+
+    const char *comment;
+} IRNode_t;
+
+typedef struct {
+    IRNode_t *nodes;
+    uint32_t size;
+    uint32_t capacity;
+
+    char *comments;
+    char *commentPtr;
+} IR_t;
+
+IR_t IRCtor(size_t capacity);
+void IRDtor(IR_t *ir);
+
+const size_t IR_MAX_SIZE = 4096;
+const size_t IR_MAX_COMMENTS_LEN = 16384;
+/* ====================================================================== */
 
 typedef struct BackendContext_t {
     const char *inputFileName;
@@ -32,6 +115,7 @@ typedef struct BackendContext_t {
 
     MemoryArena_t treeMemory;
     Node_t *tree;
+    IR_t IR;
 
     int mode;
 
@@ -42,11 +126,7 @@ typedef struct BackendContext_t {
     int whileCounter;
 } Backend_t;
 
-
-typedef enum BackendMode_t {
-    BACKEND_SIMPLE = 0,
-    BACKEND_TAXES = 1
-} BackendMode_t;
+BackendStatus_t convertASTtoIR(BackendContext_t *backend, Node_t *ast);
 
 BackendStatus_t LocalsStackInit(LocalsStack_t *stk, size_t capacity);
 BackendStatus_t LocalsStackDelete(LocalsStack_t *stk);
