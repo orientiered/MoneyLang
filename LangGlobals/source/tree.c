@@ -77,6 +77,7 @@ bool dumpTree(LangContext_t *context, Node_t *node, bool minified) {
     char buffer[DUMP_BUFFER_SIZE] = "";
     sprintf(buffer, LOGS_DIR "/" DOTS_DIR "/" EXPR_TREE_DUMP_DOT_FORMAT, dumpCounter);
     FILE *dotFile = fopen(buffer, "w");
+    assert(dotFile);
 
     fprintf(dotFile, "digraph {\n"
                       "graph [splines=line]\n");
@@ -92,8 +93,10 @@ bool dumpTree(LangContext_t *context, Node_t *node, bool minified) {
     sprintf(buffer, "dot " LOGS_DIR "/" DOTS_DIR "/" EXPR_TREE_DUMP_DOT_FORMAT
                     " -T%s -o " LOGS_DIR "/" IMGS_DIR "/" EXPR_TREE_DUMP_IMG_FORMAT "%s",
                     dumpCounter, extension, dumpCounter, extension);
-    if (system(buffer) != 0)
+    if (system(buffer) != 0) {
+        logPrint(L_ZERO, 1, "Graphviz failed to create graph\n");
         return false;
+    }
 
     logPrint(L_ZERO, 0, "<img src=\"" IMGS_DIR "/" EXPR_TREE_DUMP_IMG_FORMAT "%s\" width=76%%>\n<hr>\n", dumpCounter, extension);
     return true;

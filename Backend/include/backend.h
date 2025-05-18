@@ -26,6 +26,7 @@ typedef enum BackendStatus_t {
     BACKEND_WRITE_ERROR,
     BACKEND_TYPE_ERROR,
     BACKEND_SCOPE_ERROR,
+    BACKEND_NESTED_FUNC_ERROR,
     BACKEND_ERROR
 } BackendStatus_t;
 
@@ -57,16 +58,50 @@ typedef enum {
     IR_ASSIGN, //? Maybe redundant
     IR_PUSH,
     IR_POP,
+    IR_VAR_DECL,
     // control flow
+    IR_LABEL,
     IR_JMP,
     IR_JZ,
     IR_CALL,
     IR_RET,
-    // IR_ENTER,
+    IR_SET_FRAME_PTR,
     // IR_LEAVE,
     IR_EXIT
 
 } IRNodeType_t;
+
+static const char * const IRNodeTypeStrings[] = {
+    "IR_NOP", ///< use for commentarie"
+    // binary arithmetical operations
+    "IR_ADD",
+    "IR_SUB",
+    "IR_MUL",
+    "IR_DIV",
+    // unary arithmetical operations
+    "IR_SQRT",
+    // comparison operations
+    "IR_CMPLT",
+    "IR_CMPGT",
+    "IR_CMPLE",
+    "IR_CMPGE",
+    "IR_CMPEQ",
+    "IR_CMPNEQ",
+    // assign
+    "IR_ASSIGN", //? Maybe redundant
+    "IR_PUSH",
+    "IR_POP",
+    "IR_VAR_DECL",
+    // control flow
+    "IR_LABEL",
+    "IR_JMP",
+    "IR_JZ",
+    "IR_CALL",
+    "IR_RET",
+    "IR_SET_FRAME_PTR",
+    // IR_LEAVE,
+    "IR_EXIT"
+};
 
 enum IRPushPopType {
     PUSH_IMM,
@@ -85,6 +120,8 @@ typedef struct {
         double dval;
         IRaddr_t addr;
     };
+    bool local;
+
     enum IRPushPopType extra;
 
     const char *comment;
@@ -126,6 +163,7 @@ typedef struct BackendContext_t {
     int whileCounter;
 } Backend_t;
 
+BackendStatus_t IRdump(BackendContext_t *backend);
 BackendStatus_t convertASTtoIR(BackendContext_t *backend, Node_t *ast);
 
 BackendStatus_t LocalsStackInit(LocalsStack_t *stk, size_t capacity);
@@ -161,7 +199,10 @@ BackendStatus_t translateToAsm(Backend_t *context);
 #define RET_ON_ERROR(expr)                                          \
     do {                                                            \
         BackendStatus_t status = (expr);                            \
-        if (status != BACKEND_SUCCESS) return status;               \
+        if (status != BACKEND_SUCCESS) {                            \
+            logPrint(L_ZERO, 1, "Backend error: %s:%d\n", __FILE__, __LINE__);\
+            return status;                                          \
+        }                                                           \
     } while (0)
 
 #define SyntaxError(context, ret, ...)                              \
