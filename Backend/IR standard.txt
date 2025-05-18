@@ -1,0 +1,44 @@
+typedef enum {
+    IR_NOP, ///< use for commentaries
+    // binary arithmetical operations
+    IR_ADD,
+    IR_SUB,
+    IR_MUL,
+    IR_DIV,
+    // unary arithmetical operations
+    IR_SQRT,
+    // comparison operations
+    IR_CMPLT,
+    IR_CMPGT,
+    IR_CMPLE,
+    IR_CMPGE,
+    IR_CMPEQ,
+    IR_CMPNEQ,
+    // assign
+    IR_ASSIGN, //? Maybe redundant
+    IR_PUSH,
+    IR_POP,
+    IR_VAR_DECL,
+        + bool local indicates where this value was declared
+    // control flow
+
+    IR_LABEL
+        + Comment is label without ':'
+
+    IR_JMP
+        + addr.offset is index of destination IR node
+
+    IR_JZ
+        + addr.offset is index of destination IR node
+
+    IR_CALL,
+        + addr.offset is idx of called function in name table
+
+    IR_RET,
+        + includes frame ptr fixing
+    IR_SET_FRAME_PTR,
+    // IR_LEAVE,
+    IR_EXIT
+
+
+} IRNodeType_t;

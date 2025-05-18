@@ -8,6 +8,9 @@
 #include "nameTable.h"
 #include "Context.h"
 
+const char * const STDLIB_IN_FUNC_NAME  = "__stdlib_in";
+const char * const STDLIB_OUT_FUNC_NAME = "__stdlib_out";
+
 typedef struct LocalVar_t {
     int id;
     unsigned address;
@@ -27,6 +30,7 @@ typedef enum BackendStatus_t {
     BACKEND_TYPE_ERROR,
     BACKEND_SCOPE_ERROR,
     BACKEND_NESTED_FUNC_ERROR,
+    BACKEND_WRONG_ARGS_NUMBER,
     BACKEND_ERROR
 } BackendStatus_t;
 
@@ -106,7 +110,7 @@ static const char * const IRNodeTypeStrings[] = {
 enum IRPushPopType {
     PUSH_IMM,
     PUSH_MEM,
-    PUSH_REG,
+    PUSH_REG, // push rax
     POP_MEM
 };
 
@@ -114,11 +118,13 @@ typedef struct {
     int64_t offset;
 } IRaddr_t;
 
+
 typedef struct {
     IRNodeType_t    type;
     union {
         double dval;
         IRaddr_t addr;
+
     };
     bool local;
 

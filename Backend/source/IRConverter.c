@@ -22,6 +22,16 @@ static IRNode_t *IRgetNewNode(BackendContext_t *backend) {
     return &IR->nodes[IR->size++];
 }
 
+static IRNode_t *IRnodeCtor(BackendContext_t *backend, IRNodeType_t type);
+
+static IRNode_t *IRnodeCtor(BackendContext_t *backend, IRNodeType_t type) {
+    IRNode_t *node = IRgetNewNode(backend);
+    node->type = type;
+
+    return node;
+}
+
+
 IR_t IRCtor(size_t capacity) {
     IR_t ir = {
         .nodes = CALLOC(capacity, IRNode_t),
@@ -221,6 +231,14 @@ static BackendStatus_t convertVarDeclaration(BackendContext_t *backend, Node_t *
 
 static BackendStatus_t convertFuncDecl(BackendContext_t *backend, Node_t *node);
 
+static BackendStatus_t convertRet(BackendContext_t *backend, Node_t *node);
+
+static BackendStatus_t convertCall(BackendContext_t *backend, Node_t *node);
+
+static BackendStatus_t convertIn(BackendContext_t *backend, Node_t *node);
+
+static BackendStatus_t convertOut(BackendContext_t *backend, Node_t *node);
+
 BackendStatus_t convertASTtoIR(BackendContext_t *backend, Node_t *ast) {
     assert(backend);
     assert(ast);
@@ -264,15 +282,9 @@ static BackendStatus_t convertASTtoIRrecursive(BackendContext_t *backend, Node_t
     assert(backend);
     assert(node);
 
-    IR_t *IR = &backend->IR;
-    assert(IR->size < IR->capacity);
-
-    IRNode_t *irNode = &IR->nodes[IR->size];
-
     if (node->type == NUMBER) {
         logPrint(L_ZERO, 0, "ASTtoIR: Converting number\n");
-        IR->size++;
-        irNode->type = IR_PUSH;
+        IRNode_t *irNode = IRnodeCtor(backend, IR_PUSH);
         irNode->extra = PUSH_IMM;
 
         irNode->dval = node->value.number;
@@ -282,8 +294,7 @@ static BackendStatus_t convertASTtoIRrecursive(BackendContext_t *backend, Node_t
 
     if (node->type == IDENTIFIER) {
         logPrint(L_ZERO, 0, "ASTtoIR: Converting identifier\n");
-        IR->size++;
-        irNode->type = IR_PUSH;
+        IRNode_t *irNode = IRnodeCtor(backend, IR_PUSH);
         irNode->extra = PUSH_MEM;
 
         int nameId = node->value.id;
@@ -307,6 +318,26 @@ static BackendStatus_t convertASTtoIRrecursive(BackendContext_t *backend, Node_t
         case OP_FUNC_DECL:
             logPrint(L_ZERO, 0, "ASTtoIR: Converting function declaration\n");
             RET_ON_ERROR(convertFuncDecl(backend, node));
+            break;
+
+        case OP_CALL:
+            logPrint(L_ZERO, 0, "ASTtoIR: Converting call \n");
+            RET_ON_ERROR(convertCall(backend, node));
+            break;
+
+        case OP_RET:
+            logPrint(L_ZERO, 0, "ASTtoIR: Converting function ret \n");
+            RET_ON_ERROR(convertRet(backend, node));
+            break;
+
+        case OP_IN:
+            logPrint(L_ZERO, 0, "ASTtoIR: Converting in operator \n");
+            RET_ON_ERROR(convertIn(backend, node));
+            break;
+
+        case OP_OUT:
+            logPrint(L_ZERO, 0, "ASTtoIR: Converting out operator \n");
+            RET_ON_ERROR(convertOut(backend, node));
             break;
 
         case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV:
@@ -350,7 +381,6 @@ static BackendStatus_t convertASTtoIRrecursive(BackendContext_t *backend, Node_t
 }
 
 
-
 static BackendStatus_t convertBinaryArithmetic(BackendContext_t *backend, Node_t *node) {
     assert(node);
     assert(backend);
@@ -359,10 +389,7 @@ static BackendStatus_t convertBinaryArithmetic(BackendContext_t *backend, Node_t
     RET_ON_ERROR(convertASTtoIRrecursive(backend, node->left));
     RET_ON_ERROR(convertASTtoIRrecursive(backend, node->right));
 
-    IR_t *IR = &backend->IR;
-    assert(IR->size < IR->capacity);
-
-    IRNode_t *irNode = &IR->nodes[IR->size];
+    IRNode_t *irNode = IRgetNewNode(backend);
 
     switch(node->value.op) {
         case OP_ADD: irNode->type = IR_ADD; break;
@@ -372,8 +399,6 @@ static BackendStatus_t convertBinaryArithmetic(BackendContext_t *backend, Node_t
 
         default: assert(0);
     }
-
-    IR->size++;
 
     return BACKEND_SUCCESS;
 }
@@ -385,18 +410,13 @@ static BackendStatus_t convertUnaryArithmetic(BackendContext_t *backend, Node_t 
 
     RET_ON_ERROR(convertASTtoIRrecursive(backend, node->left));
 
-    IR_t *IR = &backend->IR;
-    assert(IR->size < IR->capacity);
-
-    IRNode_t *irNode = &IR->nodes[IR->size];
+    IRNode_t *irNode = IRgetNewNode(backend);
 
     switch(node->value.op) {
         case OP_SQRT: irNode->type = IR_SQRT; break;
 
         default: assert(0);
     }
-
-    IR->size++;
 
     return BACKEND_SUCCESS;
 }
@@ -409,10 +429,7 @@ static BackendStatus_t convertComparison(BackendContext_t *backend, Node_t *node
     RET_ON_ERROR(convertASTtoIRrecursive(backend, node->left));
     RET_ON_ERROR(convertASTtoIRrecursive(backend, node->right));
 
-    IR_t *IR = &backend->IR;
-    assert(IR->size < IR->capacity);
-
-    IRNode_t *irNode = &IR->nodes[IR->size];
+    IRNode_t *irNode = IRgetNewNode(backend);
 
     switch(node->value.op) {
         case OP_LABRACKET: irNode->type = IR_CMPLT;  break;
@@ -424,8 +441,6 @@ static BackendStatus_t convertComparison(BackendContext_t *backend, Node_t *node
 
         default: assert(0);
     }
-
-    IR->size++;
 
     return BACKEND_SUCCESS;
 }
@@ -452,17 +467,11 @@ static BackendStatus_t convertAssign(BackendContext_t *backend, Node_t *node) {
     RET_ON_ERROR(convertASTtoIRrecursive(backend, node->right));
 
     // popping rvalue to lvalue
-    IR_t *ir = &backend->IR;
-    assert(ir->size < ir->capacity);
-    IRNode_t *irNode = ir->nodes + ir->size;
-
-    irNode->type = IR_POP;
+    IRNode_t *irNode = IRnodeCtor(backend, IR_POP);
     irNode->extra = POP_MEM;
 
     int nameId = node->left->value.id;
     RET_ON_ERROR(LocalsStackSearchAddr(nameId, backend, irNode));
-
-    ir->size++;
 
     return BACKEND_SUCCESS;
 }
@@ -484,8 +493,7 @@ static BackendStatus_t convertIfElse(BackendContext_t *backend, Node_t *node) {
 
     if (!hasElse) {
         // Jump to the end on condition fail
-        IRNode_t *endJump = IRgetNewNode(backend);
-        endJump->type = IR_JZ;
+        IRNode_t *endJump = IRnodeCtor(backend, IR_JZ);
 
         // Statement
         IRprintf(backend, "if %d: statement", currentIf);
@@ -499,16 +507,14 @@ static BackendStatus_t convertIfElse(BackendContext_t *backend, Node_t *node) {
         node = node->right;
 
         // Jump to the else branch on condition fail
-        IRNode_t *elseJump = IRgetNewNode(backend);
-        elseJump->type = IR_JZ;
+        IRNode_t *elseJump = IRnodeCtor(backend, IR_JZ);
 
         // If Statement
         IRprintf(backend, "if %d: statement", currentIf);
         RET_ON_ERROR(convertASTtoIRrecursive(backend, node->left));
 
         // Jump to the end
-        IRNode_t *endJump = IRgetNewNode(backend);
-        endJump->type = IR_JMP;
+        IRNode_t *endJump = IRnodeCtor(backend, IR_JMP);
 
         // Else label
         uint32_t elseLabelIdx = IRcreateLabel(backend, "IF%d_ELSE", currentIf);
@@ -542,16 +548,14 @@ static BackendStatus_t convertWhile(BackendContext_t *backend, Node_t *node) {
     RET_ON_ERROR(convertASTtoIRrecursive(backend, node->left));
 
     // Jmp to the end
-    IRNode_t *endJump = IRgetNewNode(backend);
-    endJump->type = IR_JZ;
+    IRNode_t *endJump = IRnodeCtor(backend, IR_JZ);
 
     // Translating statement
     IRprintf(backend, "While %d: statement", currentWhile);
     RET_ON_ERROR(convertASTtoIRrecursive(backend, node->right));
 
     // Jump to the start
-    IRNode_t *jmpStart = IRgetNewNode(backend);
-    jmpStart->type = IR_JMP;
+    IRNode_t *jmpStart = IRnodeCtor(backend, IR_JMP);
     jmpStart->addr.offset = loopLabelIdx;
 
     // end label
@@ -576,9 +580,8 @@ static BackendStatus_t convertVarDeclaration(BackendContext_t *backend, Node_t *
     else
         IRprintf(backend, "Decl global var %s", id->str);
 
-    IRNode_t *irNode = IRgetNewNode(backend);
+    IRNode_t *irNode = IRnodeCtor(backend, IR_VAR_DECL);
     irNode->local = !backend->inFunction;
-    irNode->type = IR_VAR_DECL;
 
 
     return BACKEND_SUCCESS;
@@ -600,8 +603,8 @@ static BackendStatus_t convertFuncDecl(BackendContext_t *backend, Node_t *node) 
 
     // creating function label and writing it's address in IR to the nameTable
     IRComment(backend, "----------Function %s---------", funcName);
-    IRNode_t *jumpDeclEnd = IRgetNewNode(backend);
-    jumpDeclEnd->type = IR_JMP;
+    IRNode_t *jumpDeclEnd = IRnodeCtor(backend, IR_JMP);
+
     uint32_t funcLabelIdx = IRcreateLabel(backend, "%s", funcName);
     funcId->address = funcLabelIdx;
 
@@ -620,8 +623,8 @@ static BackendStatus_t convertFuncDecl(BackendContext_t *backend, Node_t *node) 
         argPtr = argPtr->right;
     }
 
-    IRNode_t *framePtrSet = IRgetNewNode(backend);
-    framePtrSet->type = IR_SET_FRAME_PTR;
+    // setting frame pointer
+    IRnodeCtor(backend, IR_SET_FRAME_PTR);
 
     // Converting code
     RET_ON_ERROR(convertASTtoIRrecursive(backend, node->right));
@@ -632,6 +635,102 @@ static BackendStatus_t convertFuncDecl(BackendContext_t *backend, Node_t *node) 
     IRComment(backend, "----------%s end---------------", funcName);
 
     LocalsStackPopScope(&backend->stk);
+
+    return BACKEND_SUCCESS;
+}
+
+static BackendStatus_t convertRet(BackendContext_t *backend, Node_t *node) {
+    assert(backend); assert(node);
+
+    RET_ON_ERROR(convertASTtoIRrecursive(backend, node->left));
+
+    if (backend->mode == BACKEND_TAXES)
+        TODO("Imlpement taxes in function return");
+
+    IRnodeCtor(backend, IR_RET);
+
+
+    return BACKEND_SUCCESS;
+}
+
+static BackendStatus_t convertCallArguments(BackendContext_t *backend, Node_t *node, uint32_t expectedArgsCount);
+
+static BackendStatus_t convertCall(BackendContext_t *backend, Node_t *node) {
+    assert(backend); assert(node);
+
+    Identifier_t func = getIdFromTable(&backend->nameTable, node->left->value.id);
+    if (func.type != FUNC_ID)
+        SyntaxError(backend, BACKEND_TYPE_ERROR, "Try to use variable %s as a function\n", func.str);
+
+    if (node->right)
+        RET_ON_ERROR(convertCallArguments(backend, node->right, func.argsCount));
+
+    IRprintf(backend, "%s", func.str);
+    IRNode_t *callNode = IRnodeCtor(backend, IR_CALL);
+
+    if (cmpOp(node->parent, OP_SEP))
+        TODO("Calls without assignment are not supported yet");
+
+    callNode->addr.offset = node->left->value.id;
+
+    return BACKEND_SUCCESS;
+}
+
+//! This method might not be compatible with SPU
+static BackendStatus_t convertCallArguments(BackendContext_t *backend, Node_t *node, uint32_t expectedArgsCount) {
+    assert(backend); assert(node);
+
+    if (expectedArgsCount == 0)
+        SyntaxError(backend, BACKEND_WRONG_ARGS_NUMBER, "Less arguments than expected\n");
+
+    // evaluating arguments and pushing them right-to-left
+    if (cmpOp(node, OP_SEP)) {
+        RET_ON_ERROR(convertCallArguments(backend, node->right, expectedArgsCount - 1));
+        RET_ON_ERROR(convertASTtoIRrecursive(backend, node->left));
+    } else {
+        if (expectedArgsCount != 1)
+            SyntaxError(backend, BACKEND_WRONG_ARGS_NUMBER, "More arguments in function call than expected\n");
+        RET_ON_ERROR(convertASTtoIRrecursive(backend, node));
+    }
+
+    return BACKEND_SUCCESS;
+}
+
+static BackendStatus_t convertIn(BackendContext_t *backend, Node_t *node) {
+    assert(backend); assert(node);
+
+    int stdlibInIdx = findIdentifier(&backend->nameTable, STDLIB_IN_FUNC_NAME);
+
+    // calling in
+    IRprintf(backend, "%s", STDLIB_IN_FUNC_NAME);
+    IRNode_t *callNode = IRnodeCtor(backend, IR_CALL);
+    callNode->addr.offset = stdlibInIdx;
+
+    //TODO: maybe rework it
+    //? Should I push result of the function right after the call?
+    IRNode_t *resultPush = IRnodeCtor(backend, IR_PUSH);
+    resultPush->extra = PUSH_REG; // pushing rax
+
+    // popping rvalue to lvalue
+    IRNode_t *irNode = IRnodeCtor(backend, IR_POP);
+    irNode->extra = POP_MEM;
+
+    int nameId = node->left->value.id;
+    RET_ON_ERROR(LocalsStackSearchAddr(nameId, backend, irNode));
+    return BACKEND_SUCCESS;
+}
+
+static BackendStatus_t convertOut(BackendContext_t *backend, Node_t *node) {
+    assert(backend); assert(node);
+
+    // converting expression
+    RET_ON_ERROR(convertASTtoIRrecursive(backend, node->left));
+
+    int stdlibOutIdx = findIdentifier(&backend->nameTable, STDLIB_OUT_FUNC_NAME);
+
+    IRprintf(backend, "%s", STDLIB_OUT_FUNC_NAME);
+    IRNode_t *callNode = IRnodeCtor(backend, IR_CALL);
+    callNode->addr.offset = stdlibOutIdx;
 
     return BACKEND_SUCCESS;
 }
