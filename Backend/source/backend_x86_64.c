@@ -46,6 +46,66 @@ static const char * const IRasmStr[] = {
 
 };
 
+static BackendStatus_t includeStdlib(Backend_t *backend, FILE *out);
+static BackendStatus_t emitStart(Backend_t *backend, FILE *out);
+
+static BackendStatus_t includeStdlib(Backend_t *backend, FILE *out) {
+    assert(backend); assert(out);
+
+    logPrint(L_ZERO, 0, "Including stdlib\n");
+
+    // Opening stdlib file
+    FILE *stdlibFile = fopen(STDLIB_ASM_FILE, "r");
+    if (!stdlibFile) {
+        logPrint(L_ZERO, 1, "Failed to open stdlib file '%s'\n", STDLIB_ASM_FILE);
+        return BACKEND_FILE_ERROR;
+    }
+
+    // Getting length of the file
+    fseek(stdlibFile, 0, SEEK_END);
+    int64_t fileLen = ftell(stdlibFile);
+    assert(fileLen > 0);
+    fseek(stdlibFile, 0, SEEK_SET);
+
+    logPrint(L_ZERO, 0, "Stdlib length in bytes: %ji\n", fileLen);
+
+
+    // Reading it to the buffer
+    char *buffer = (char *) calloc(fileLen, 1);
+    int64_t bytesRead = fread(buffer, 1, fileLen, stdlibFile);
+    assert(bytesRead == fileLen);
+
+    // Writing stdlib to the resulting file
+    int64_t bytesWrited = fwrite(buffer, 1, fileLen, out);
+    assert(bytesWrited == fileLen);
+
+    logPrint(L_ZERO, 0, "Writing stdlib to output file finished\n");
+
+    free(buffer);
+    fclose(stdlibFile);
+
+    return BACKEND_SUCCESS;
+}
+
+static BackendStatus_t emitStart(Backend_t *backend, FILE *out) {
+    assert(backend); assert(out);
+
+    //TODO: change it
+    asm_emit("global _start\n");
+    asm_emit("_start:\n");
+
+    asm_emit("; Saving frame pointer for global variables\n");
+    asm_emit("\tmov  rbx, rsp\n");
+    asm_emit("; Initializing xmm7 with 1.0\n");
+    asm_emit("\tmov  rcx, 0x3FF0000000000000\n");
+    asm_emit("\tmovq xmm7, rcx\n");
+
+
+    return BACKEND_SUCCESS;
+}
+
+static BackendStatus_t translateIRarray(Backend_t *backend, FILE *out);
+
 BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
     assert(backend);
     assert(backend->IR.nodes); assert(backend->IR.size > 0);
@@ -56,16 +116,23 @@ BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
         return BACKEND_FILE_ERROR;
     }
 
+    includeStdlib(backend, out);
+
+    emitStart(backend, out);
+
+    translateIRarray(backend, out);
+
+    fclose(out);
+
+    return BACKEND_SUCCESS;
+}
+
+static BackendStatus_t translateIRarray(Backend_t *backend, FILE *out) {
+    assert(backend); assert(out);
+
     IR_t *IR = &backend->IR;
     IRNode_t *irNodes = IR->nodes;
     NameTable_t *nameTable = &backend->nameTable;
-
-    //TODO: change it
-    asm_emit("; Saving frame pointer for global variables\n");
-    asm_emit("\tmov  rbx, rsp\n");
-    asm_emit("; Initializing xmm7 with 1.0\n");
-    asm_emit("\tmov  rcx, 0x3FF0000000000000\n");
-    asm_emit("\tmovq xmm7, rcx\n");
 
     for (size_t nodeIdx = 0; nodeIdx <  IR->size; nodeIdx++) {
         IRNode_t *curNode = IR->nodes + nodeIdx;
@@ -153,6 +220,7 @@ BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
                 asm_emit("\tcall %s\n", funcId.str);
                 if (funcId.argsCount > 0)
                     asm_emit("\tadd  rsp, %zu\n", funcId.argsCount * 8); // fixing stack
+
             }
                 break;
 
@@ -162,8 +230,8 @@ BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
                 break;
 
             case IR_RET:
-                // moving result to the rax from stack
-                asm_emit("\tmov  rax, QWORD [rsp]\n");
+                // popping result to the rax from stack
+                asm_emit("\tpop  rax\n");
                 // fixing stack
                 asm_emit("\tmov  rsp, rbp\n");
                 // restoring rbp
@@ -183,9 +251,6 @@ BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
         }
 
     }
-
-
-    fclose(out);
 
     return BACKEND_SUCCESS;
 }

@@ -10,6 +10,7 @@
 
 const char * const STDLIB_IN_FUNC_NAME  = "__stdlib_in";
 const char * const STDLIB_OUT_FUNC_NAME = "__stdlib_out";
+const char * const STDLIB_ASM_FILE      = "Backend/source/stdlib.s";
 
 typedef struct LocalVar_t {
     int id;

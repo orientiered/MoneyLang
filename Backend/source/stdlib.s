@@ -222,32 +222,29 @@ __stdlib_in:
     ret
 ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~;
 
-
-
-_start:
-    ; mov rax, 0x3FF0000000000000 ; 1
-    ; mov rax, 0x3F7988D2A1F8E3AC ; 1
-    mov rax, 0x4046E3D70A3D70A4; 45.78
-    push rax
-    call __stdlib_out
-    pop  rax
-
-
-    call __stdlib_in
-
-    ; movq  xmm0, rax
-    ; mulsd xmm0, [fp2]
-    ; movq  rax, xmm0
-    push  rax
-
-    call __stdlib_out
-
-    pop  rax
-    mov rax, 0x4046E3D70A3D70A4; 45.78
-    push rax
-    call __stdlib_out
-    pop  rax
-
-    mov rax, 0x3c
-    mov rdi, 0
-    syscall
+; _start:
+;     ; mov rax, 0x3FF0000000000000 ; 1
+;     ; mov rax, 0x3F7988D2A1F8E3AC ; 1
+;     mov rax, 0x4046E3D70A3D70A4; 45.78
+;     push rax
+;     call __stdlib_out
+;     pop  rax
+;
+;     call __stdlib_in
+;
+;     ; movq  xmm0, rax
+;     ; mulsd xmm0, [fp2]
+;     ; movq  rax, xmm0
+;     push  rax
+;
+;     call __stdlib_out
+;
+;     pop  rax
+;     mov rax, 0x4046E3D70A3D70A4; 45.78
+;     push rax
+;     call __stdlib_out
+;     pop  rax
+;
+;     mov rax, 0x3c
+;     mov rdi, 0
+;     syscall

@@ -137,17 +137,20 @@ BackendStatus_t LocalsStackDelete(LocalsStack_t *stk) {
 
 BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id) {
     // addresses are relative to rbp (or rbx for global variables) without *8
-    // -3 | arg 2
-    // -2 | arg 1
-    // -1 | return address
+    //  3 | arg 2
+    //  2 | arg 1
+    //  1 | return address
     //  0 | rbp
-    //  1 | local 1
-    //  2 | local 2
-    //  3 | local 3
+    // -1 | local 1
+    // -2 | local 2
+    // -3 | local 3
 
-    int64_t addr = 1;
-    if (stk->size > 0 && LocalsStackTop(stk)->id != FUNC_SCOPE)
-        addr = LocalsStackTop(stk)->address + 1;
+    int64_t addr = -1;
+    if (stk->size > 0 && LocalsStackTop(stk)->id != FUNC_SCOPE) {
+        int64_t topAddr = LocalsStackTop(stk)->address;
+        if (topAddr < 0)
+            addr = LocalsStackTop(stk)->address - 1;
+    }
 
     stk->vars[stk->size].id = id;
     stk->vars[stk->size].address = addr;
@@ -160,7 +163,7 @@ BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id) {
 /// argNumber starts from 0, counting left to right
 static BackendStatus_t LocalsStackPushFuncArg(LocalsStack_t *stk, int id, int argNumber) {
     stk->vars[stk->size].id = id;
-    int64_t addr = -argNumber - 2;
+    int64_t addr = argNumber + 2;
     stk->vars[stk->size].address = addr;
 
     stk->size++;
@@ -701,8 +704,13 @@ static BackendStatus_t convertCall(BackendContext_t *backend, Node_t *node) {
     IRprintf(backend, "%s", func.str);
     IRNode_t *callNode = IRnodeCtor(backend, IR_CALL);
 
-    if (cmpOp(node->parent, OP_SEP))
+    if (cmpOp(node->parent, OP_SEP)) {
         TODO("Calls without assignment are not supported yet");
+    } else {
+        IRprintf(backend, "Pushing call result");
+        IRNode_t *pushResult = IRnodeCtor(backend, IR_PUSH);
+        pushResult->extra = PUSH_REG;
+    }
 
     callNode->addr.offset = node->left->value.id;
 

@@ -12,3 +12,6 @@ log.txt
 *.ast
 *.asm
 *.lol
+
+*.exe
+*.o
