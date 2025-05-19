@@ -136,15 +136,37 @@ BackendStatus_t LocalsStackDelete(LocalsStack_t *stk) {
 }
 
 BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id) {
-    size_t addr = 0;
+    // addresses are relative to rbp (or rbx for global variables) without *8
+    // -3 | arg 2
+    // -2 | arg 1
+    // -1 | return address
+    //  0 | rbp
+    //  1 | local 1
+    //  2 | local 2
+    //  3 | local 3
+
+    int64_t addr = 1;
     if (stk->size > 0 && LocalsStackTop(stk)->id != FUNC_SCOPE)
         addr = LocalsStackTop(stk)->address + 1;
 
     stk->vars[stk->size].id = id;
     stk->vars[stk->size].address = addr;
 
-    logPrint(L_EXTRA, 0, "Pushed variable %d to stk, addr = %d\n", id, addr);
+    logPrint(L_EXTRA, 0, "Pushed variable %d to stk, addr = %ji\n", id, addr);
     stk->size++;
+    return BACKEND_SUCCESS;
+}
+
+/// argNumber starts from 0, counting left to right
+static BackendStatus_t LocalsStackPushFuncArg(LocalsStack_t *stk, int id, int argNumber) {
+    stk->vars[stk->size].id = id;
+    int64_t addr = -argNumber - 2;
+    stk->vars[stk->size].address = addr;
+
+    stk->size++;
+
+    logPrint(L_EXTRA, 0, "Pushed variable %d (function argument) to stk, addr = %ji\n", id, addr);
+
     return BACKEND_SUCCESS;
 }
 
@@ -167,12 +189,15 @@ static BackendStatus_t LocalsStackSearchAddr(int id, Backend_t *backend, IRNode_
         LocalVar_t currentVar = stk->vars[idx];
 
         if (currentVar.id == id) {
-            logPrint(L_EXTRA, 0, "Translating id %d %s\n", id, tableId.str);
+            logPrint(L_EXTRA, 0, "Found id %d %s, local = %d\n", id, tableId.str, local);
 
             IR_t *ir = &backend->IR;
             irNode->local = local;
             irNode->comment = ir->commentPtr;
-            ir->commentPtr += sprintf(ir->commentPtr, "%s", tableId.str) + 1;
+            if (local)
+                ir->commentPtr += sprintf(ir->commentPtr, "local %s", tableId.str) + 1;
+            else
+                ir->commentPtr += sprintf(ir->commentPtr, "global %s", tableId.str) + 1;
 
             irNode->addr.offset = currentVar.address;
 
@@ -248,6 +273,10 @@ BackendStatus_t convertASTtoIR(BackendContext_t *backend, Node_t *ast) {
     backend->IR = ir;
 
     RET_ON_ERROR(convertASTtoIRrecursive(backend, ast));
+
+    // adding exit node
+    IRprintf(backend, "program exit");
+    IRnodeCtor(backend, IR_EXIT);
 
     return BACKEND_SUCCESS;
 }
@@ -612,6 +641,7 @@ static BackendStatus_t convertFuncDecl(BackendContext_t *backend, Node_t *node) 
     // If there is more then one argument, they are separated with OP_SEP
     // argument is SEP_NODE->left
     Node_t *argPtr = funcHeader->right;
+    int argNumber = 0;
     while (argPtr) {
         size_t argIdx = (cmpOp(argPtr, OP_SEP)) ?  argPtr->left->value.id :
                                                    argPtr->value.id;
@@ -619,7 +649,8 @@ static BackendStatus_t convertFuncDecl(BackendContext_t *backend, Node_t *node) 
         Identifier_t *id = backend->nameTable.identifiers + argIdx;
         logPrint(L_EXTRA, 0, "Argument %p in function %s: %d %s\n", argPtr, funcName, argIdx, id->str);
 
-        LocalsStackPush(&backend->stk, argIdx);
+        LocalsStackPushFuncArg(&backend->stk, argIdx, argNumber);
+        argNumber++;
         argPtr = argPtr->right;
     }
 
@@ -633,6 +664,8 @@ static BackendStatus_t convertFuncDecl(BackendContext_t *backend, Node_t *node) 
     jumpDeclEnd->addr.offset = declEndLabel;
 
     IRComment(backend, "----------%s end---------------", funcName);
+
+    backend->inFunction = false;
 
     LocalsStackPopScope(&backend->stk);
 

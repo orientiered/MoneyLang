@@ -4,6 +4,8 @@ First version, numbers are integers
 [] Probably i can reduce push/pop count by using instructions that work with memory
 
 
+Global variables are stored on the stack, frame pointer is rbx
+
 ---------------------------------------------------------------------------
 Immediate
 
@@ -22,7 +24,6 @@ addsd xmm0, [rsp]
         subsd  xmm0, [rsp]
         mulsd  xmm0, [rsp]
         divsd  xmm0, [rsp]
-        sqrtsd xmm0, [rsp]
 */
 sub   rsp, 8
 movq [rsp], xmm0

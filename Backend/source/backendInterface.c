@@ -65,6 +65,12 @@ BackendStatus_t BackendDelete(Backend_t *context) {
     return BACKEND_SUCCESS;
 }
 
+static void loadStdlibFunctions(Backend_t *backend) {
+    NameTable_t *nameTable = &backend->nameTable;
+    insertIdentifier(nameTable, STDLIB_IN_FUNC_NAME);
+    insertIdentifier(nameTable, STDLIB_OUT_FUNC_NAME);
+}
+
 BackendStatus_t BackendRun(Backend_t *context) {
     LangContext_t lContext = {0};
     backendToLangContext(&lContext, context);
@@ -75,6 +81,8 @@ BackendStatus_t BackendRun(Backend_t *context) {
     langContextToBackend(context, &lContext);
     DUMP_TREE(&lContext, context->tree, 0);
 
+    loadStdlibFunctions(context);
+
     logPrint(L_ZERO, 0, "Converting AST to IR\n");
     BackendStatus_t status = convertASTtoIR(context, context->tree);
     if (status != BACKEND_SUCCESS) {
@@ -83,6 +91,12 @@ BackendStatus_t BackendRun(Backend_t *context) {
     }
 
     IRdump(context);
+
+    status = translateIRtox86Asm(context);
+    if (status != BACKEND_SUCCESS) {
+        logPrint(L_ZERO, 1, "Failed to convert IR to x86asm\n");
+        return status;
+    }
 
     return BACKEND_SUCCESS;
 }

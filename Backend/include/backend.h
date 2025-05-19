@@ -13,7 +13,7 @@ const char * const STDLIB_OUT_FUNC_NAME = "__stdlib_out";
 
 typedef struct LocalVar_t {
     int id;
-    unsigned address;
+    int64_t address;
 } LocalVar_t;
 
 typedef struct LocalsStack_t {
@@ -31,6 +31,7 @@ typedef enum BackendStatus_t {
     BACKEND_SCOPE_ERROR,
     BACKEND_NESTED_FUNC_ERROR,
     BACKEND_WRONG_ARGS_NUMBER,
+    BACKEND_UNSUPPORTED_IR,
     BACKEND_ERROR
 } BackendStatus_t;
 
@@ -200,7 +201,7 @@ BackendStatus_t BackendDelete(Backend_t *context);
 
 BackendStatus_t BackendRun(Backend_t *context);
 
-BackendStatus_t translateToAsm(Backend_t *context);
+BackendStatus_t translateIRtox86Asm(Backend_t *backend);
 
 #define RET_ON_ERROR(expr)                                          \
     do {                                                            \
