@@ -372,6 +372,11 @@ static BackendStatus_t convertASTtoIRrecursive(BackendContext_t *backend, Node_t
             RET_ON_ERROR(convertOut(backend, node));
             break;
 
+        case OP_TEXT:
+            logPrint(L_ZERO, 0, "ASTtoIR: Converting text operator \n");
+            logPrint(L_ZERO, 1, "Warning: Text is not supported yet. Skipping this instruction \n");
+            break;
+
         case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV:
             logPrint(L_ZERO, 0, "ASTtoIR: Converting binary math\n");
             RET_ON_ERROR(convertBinaryArithmetic(backend, node));
@@ -394,7 +399,7 @@ static BackendStatus_t convertASTtoIRrecursive(BackendContext_t *backend, Node_t
             break;
 
         case OP_IF:
-            logPrint(L_ZERO, 0, "ASTtoIR: Converting if/else math\n");
+            logPrint(L_ZERO, 0, "ASTtoIR: Converting if/else\n");
             RET_ON_ERROR(convertIfElse(backend, node));
             break;
 
@@ -646,7 +651,7 @@ static BackendStatus_t convertFuncDecl(BackendContext_t *backend, Node_t *node) 
     Node_t *argPtr = funcHeader->right;
     int argNumber = 0;
     while (argPtr) {
-        size_t argIdx = (cmpOp(argPtr, OP_SEP)) ?  argPtr->left->value.id :
+        size_t argIdx = (cmpOp(argPtr, OP_COMMA)) ?  argPtr->left->value.id :
                                                    argPtr->value.id;
 
         Identifier_t *id = backend->nameTable.identifiers + argIdx;
@@ -698,14 +703,19 @@ static BackendStatus_t convertCall(BackendContext_t *backend, Node_t *node) {
     if (func.type != FUNC_ID)
         SyntaxError(backend, BACKEND_TYPE_ERROR, "Try to use variable %s as a function\n", func.str);
 
-    if (node->right)
-        RET_ON_ERROR(convertCallArguments(backend, node->right, func.argsCount));
+    if (node->right) {
+        BackendStatus_t status = convertCallArguments(backend, node->right, func.argsCount);
+        if (status != BACKEND_SUCCESS) {
+            logPrint(L_ZERO, 1, "While converting call '%s'\n", func.str);
+            return status;
+        }
+    }
 
     IRprintf(backend, "%s", func.str);
     IRNode_t *callNode = IRnodeCtor(backend, IR_CALL);
 
     if (cmpOp(node->parent, OP_SEP)) {
-        TODO("Calls without assignment are not supported yet");
+        // TODO("Calls without assignment are not supported yet");
     } else {
         IRprintf(backend, "Pushing call result");
         IRNode_t *pushResult = IRnodeCtor(backend, IR_PUSH);
@@ -725,12 +735,12 @@ static BackendStatus_t convertCallArguments(BackendContext_t *backend, Node_t *n
         SyntaxError(backend, BACKEND_WRONG_ARGS_NUMBER, "Less arguments than expected\n");
 
     // evaluating arguments and pushing them right-to-left
-    if (cmpOp(node, OP_SEP)) {
+    if (cmpOp(node, OP_COMMA)) {
         RET_ON_ERROR(convertCallArguments(backend, node->right, expectedArgsCount - 1));
         RET_ON_ERROR(convertASTtoIRrecursive(backend, node->left));
     } else {
         if (expectedArgsCount != 1)
-            SyntaxError(backend, BACKEND_WRONG_ARGS_NUMBER, "More arguments in function call than expected\n");
+            SyntaxError(backend, BACKEND_WRONG_ARGS_NUMBER, "More arguments in function call than expected: %u\n", expectedArgsCount);
         RET_ON_ERROR(convertASTtoIRrecursive(backend, node));
     }
 

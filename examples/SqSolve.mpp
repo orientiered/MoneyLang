@@ -26,7 +26,7 @@ Transaction a, b, c -> Solve ->
     discr = b*b - 4₽ * a *c %
     if discr < 0₽ ->
     <
-        Txt "Discriminant < 0" %
+        Txt "Discriminant is less than 0" %
         Pay 0₽ %
     >
     discr = sqrt(discr) %

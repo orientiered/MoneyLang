@@ -10,7 +10,6 @@ global __stdlib_in
 global _start
 
 FLOAT_TOTAL_DIGITS equ 6
-BUFFER_LEN equ 18
 ; ============================================== ;
 ; Print floating point number to stdout
 ; Arg:
@@ -23,73 +22,96 @@ __stdlib_out:
 
     movq xmm0, [rbp+16] ; xmm0 = number
 
-    mov  rax,  0x7FFFFFFFFFFFFFFF
-    movq xmm2, rax ; xmm2 = 0b0111111111...111
 
+    ;------------- Allocating buffer on stack ---------------------
+    BUFFER_LEN equ 18
+    ; Buffer layout:
+    ;    fractional part           integer part
+    ; |\n|- - - - - - - - - - -|.|- - - - - - - - - '1' - - - -|
+    ;  ^                        ^                       ^     ^
+    ;  |                        |                       |     |
+    ; r8+17                   r8+10                 r8+r12    r8
+    ;                                    (first symbol after number)
     xor  r12, r12   ; index in buffer
     sub  rsp, BUFFER_LEN ; buffer with chars
     mov  r8,  rsp   ; buffer start
 
-; Checking sign of given number
+    ;---------- Checking  sign of given number --------------------
     pextrb ecx, xmm0, 7 ; extracting high byte with sign bit
-
+    ;---------- Removing sign from number -------------------------
+    mov  rax,  0x7FFFFFFFFFFFFFFF
+    movq xmm2, rax ; xmm2 = 0b0111111111...111
     pand xmm0, xmm2
 
+    ;---------- Extracting integer part ---------------------------
     cvttsd2si rax,  xmm0 ; rax = int(x) with rounding towards zero
     cvtsi2sd  xmm1, rax  ; xmm1  = double(int(x))
 
-    mov  rbx, 10
-    mov  r12, 9
-    xor  rdx, rdx
+    ;---------- Printing integer part -----------------------------
+    mov  rbx, 10 ; divisor
+    mov  r12, 9  ; position in buffer right after '.'
+    xor  rdx, rdx ; rdx is used in div instruction, so we must set it 0
     .int_conv_loop:
         div  rbx
-
         ; rdx = rax % 10
         ; rax = rax / 10
+
+        ;--------- rsi = rdx + '0' = digit char ------
         lea  rsi, [rdx+'0']
+        ; zeroing rdx againg
         xor  rdx, rdx
 
+        ;--------- writing digit to the buffer -------
         mov  BYTE [r8 + r12], sil
-        dec  r12
+        dec  r12  ; shiting index
 
+        ;--------- repeat until result is 0 ----------
         test rax, rax
         jnz .int_conv_loop
 
-    test cx,  0x80    ; checking sign bit
+    ;------------- Writing sign  ---------------------
+    test cx,  0x80    ; checking sign bit stored in cx
     jz .skip_minus
         mov BYTE [r8 + r12], '-'
         dec r12
     .skip_minus:
 
-    mov BYTE [r8+17], 10; '\n'
+    ;------------- Writing new line symbol and dot -----------
+    mov BYTE [r8 + 17], 10; '\n'
+    mov BYTE [r8 + 10], '.'
 
-    subsd xmm0, xmm1;
-    mov   rax, 0x412E848000000000  ; 10^6
+    ;------------- Converting fractional part --------
+    subsd xmm0, xmm1;  ; xmm0 = fractional part of x
+
+    mov   rax, 0x412E848000000000  ; 10^6 -> get 6 digits
     movq  xmm2, rax
     mulsd xmm0, xmm2     ; xmm0 = float_part(x) * 10^6
-    cvttsd2si rax,  xmm0 ; rax = int(x) with rounding towards zero
-    cvtsi2sd  xmm1, rax  ;
 
-    mov  BYTE [r8 + 10], '.'
-    mov  rcx, 6
-    xor  rdx, rdx
+    cvttsd2si rax,  xmm0 ; rax = int(xmm0) with rounding towards zero
+
+    ;------------ Convertion loop --------------------
+    mov  rcx, 6     ; processing 6 digits
+    ; rdx is alredy zero
     .float_part_loop:
         div  rbx
         lea  rsi, [rdx+'0']
+        ;------ Writing digit to the fractional part -----
         mov  BYTE [r8 + rcx + 10], sil
         xor  rdx, rdx
 
         loop .float_part_loop
 
-
+    ;------------ Using syscall to write buffer to stdout ------------
     mov rax, 1 ; write syscall
     mov rdi, 1 ; to stdout
-    lea rsi, [r8 + r12+1] ; string start
+
+    inc r12  ; now r12 is index of first symbol
+    lea rsi, [r8 + r12] ; string start
 
     mov rdx, BUFFER_LEN
     sub rdx, r12    ; length: BUF_LEN - r12
 
-    syscall
+    syscall ; write
 
     mov  rsp, rbp
     pop  rbp
@@ -214,6 +236,14 @@ __stdlib_in:
 
     divsd xmm1, xmm2 ; shifting point to correct position
     addsd xmm0, xmm1 ; result = int part + float part
+
+    cmp BYTE [rsp + 1], 1
+    ;----- Setting sign bit -------------------
+    jne .skipNegation
+        mov  rax, 0x8000000000000000 ; only sign bit
+        movq xmm2, rax
+        por  xmm0, xmm2 ; setting sign bit
+    .skipNegation:
 
     movq rax, xmm0
 

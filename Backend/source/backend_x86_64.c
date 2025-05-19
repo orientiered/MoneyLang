@@ -1,8 +1,10 @@
-#include "stdio.h"
-#include "stdlib.h"
-#include "stdbool.h"
-#include "assert.h"
-#include "string.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <assert.h>
+#include <string.h>
+
+#include <elf.h>
 
 #include "utils.h"
 #include "logger.h"
@@ -158,7 +160,7 @@ static BackendStatus_t translateIRarray(Backend_t *backend, FILE *out) {
 
             case IR_SQRT:
                 asm_emit("\tmovq xmm0, [rsp]\n");
-                asm_emit("\tsqrtsd xmm0\n");
+                asm_emit("\tsqrtsd xmm0, xmm0\n");
                 asm_emit("\tmovq [rsp], xmm0\n");
                 break;
 
