@@ -164,7 +164,8 @@ BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
             case IR_RET:
                 // moving result to the rax from stack
                 asm_emit("\tmov  rax, QWORD [rsp]\n");
-                asm_emit("\tadd  rsp, 8\n");
+                // fixing stack
+                asm_emit("\tmov  rsp, rbp\n");
                 // restoring rbp
                 asm_emit("\tpop  rbp\n");
                 asm_emit("\tret\n");
