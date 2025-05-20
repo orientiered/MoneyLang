@@ -100,9 +100,13 @@ init:
 
 #Deletes all object and .d files
 
-.PHONY:clean stdlib
+.PHONY:clean stdlib asmTest
 clean:
 	$(CMD_DEL)
+
+FILE=sub
+asmTest:
+	nasm -felf64 asm_tests/$(FILE).s -l asm_tests/$(FILE).lst -o /dev/null
 
 stdlib:
 	nasm -felf64 source/stdlib.s -o build/stdlib.o
