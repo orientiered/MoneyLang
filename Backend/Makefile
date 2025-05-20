@@ -49,7 +49,7 @@ LANG_GLOB_SRCS  := $(addprefix ../LangGlobals/source/, nameTable.c tree.c)
 LANG_GLOB_OBJS  := $(subst source,$(OBJDIR), $(LANG_GLOB_SRCS:%.c=%.o))
 LANG_GLOB_DEPS  := $(LANG_GLOB_OBJS:%.o=%.d)
 
-LOCAL_SRCS      := $(addprefix source/, main.c backendInterface.c IRConverter.c backend_x86_64.c)
+LOCAL_SRCS      := $(addprefix source/, main.c backendInterface.c IRConverter.c backend_x86_64.c emitters_x86_64.c)
 LOCAL_OBJS      := $(subst source,$(OBJDIR), $(LOCAL_SRCS:%.c=%.o))
 LOCAL_DEPS      := $(LOCAL_OBJS:%.o=%.d)
 
