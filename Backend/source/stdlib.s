@@ -48,11 +48,11 @@ __stdlib_out:
     cvtsi2sd  xmm1, rax  ; xmm1  = double(int(x))
 
     ;---------- Printing integer part -----------------------------
-    mov  rbx, 10 ; divisor
+    mov  rdi, 10 ; divisor
     mov  r12, 9  ; position in buffer right after '.'
     xor  rdx, rdx ; rdx is used in div instruction, so we must set it 0
     .int_conv_loop:
-        div  rbx
+        div  rdi
         ; rdx = rax % 10
         ; rax = rax / 10
 
@@ -93,7 +93,7 @@ __stdlib_out:
     mov  rcx, 6     ; processing 6 digits
     ; rdx is alredy zero
     .float_part_loop:
-        div  rbx
+        div  rdi
         lea  rsi, [rdx+'0']
         ;------ Writing digit to the fractional part -----
         mov  BYTE [r8 + rcx + 10], sil

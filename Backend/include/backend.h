@@ -54,12 +54,7 @@ typedef enum {
     // unary arithmetical operations
     IR_SQRT,
     // comparison operations
-    IR_CMPLT,
-    IR_CMPGT,
-    IR_CMPLE,
-    IR_CMPGE,
-    IR_CMPEQ,
-    IR_CMPNEQ,
+    IR_CMP,
     // assign
     IR_ASSIGN, //? Maybe redundant
     IR_PUSH,
@@ -87,12 +82,7 @@ static const char * const IRNodeTypeStrings[] = {
     // unary arithmetical operations
     "IR_SQRT",
     // comparison operations
-    "IR_CMPLT",
-    "IR_CMPGT",
-    "IR_CMPLE",
-    "IR_CMPGE",
-    "IR_CMPEQ",
-    "IR_CMPNEQ",
+    "IR_CMP",
     // assign
     "IR_ASSIGN", //? Maybe redundant
     "IR_PUSH",
@@ -116,6 +106,15 @@ enum IRPushPopType {
     POP_MEM
 };
 
+enum IRCmpType {
+    CMP_LT,
+    CMP_GT,
+    CMP_LE,
+    CMP_GE,
+    CMP_EQ,
+    CMP_NEQ
+};
+
 typedef struct {
     int64_t offset;
 } IRaddr_t;
@@ -130,7 +129,10 @@ typedef struct {
     };
     bool local;
 
-    enum IRPushPopType extra;
+    union {
+        enum IRPushPopType pushType;
+        enum IRCmpType     cmpType;
+    };
 
     const char *comment;
 } IRNode_t;

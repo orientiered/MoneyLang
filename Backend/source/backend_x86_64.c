@@ -15,37 +15,14 @@
 #define asm_emit(...) fprintf(out, __VA_ARGS__);
 #define TODO(msg) do {fprintf(stderr, "TODO: %s at %s:%d\n", msg, __FILE__, __LINE__); abort(); } while(0);
 
-static const char * const IRasmStr[] = {
-    "", //IR_NOP, ///< use for commentaries
-    // binary arithmetical operations
-    "addsd xmm0, [rsp]", //IR_ADD,
-    "subsd xmm0, [rsp]", //IR_SUB,
-    "mulsd xmm0, [rsp]", //IR_MUL,
-    "divsd xmm0, [rsp]", //IR_DIV,
-    // unary arithmetical operations
-    "sqrtsd xmm0, [rsp]",//IR_SQRT,
-    // comparison operations
-    "cmpltsd xmm0, [rsp]", //IR_CMPLT,
-    "cmpgtsd xmm0, [rsp]", //IR_CMPGT,
-    "cmplesd xmm0, [rsp]", //IR_CMPLE,
-    "cmpgesd xmm0, [rsp]", //IR_CMPGE,
-    "cmpeqsd xmm0, [rsp]", //IR_CMPEQ,
-    "cmpneqsd xmm0, [rsp]", //IR_CMPNEQ,
-    // assign
-    "", //IR_ASSIGN, //? Maybe redundant
-    "", //IR_PUSH,
-    "", //IR_POP,
-    "", //IR_VAR_DECL,
-    // control flow
-    "", //IR_LABEL,
-    "", //IR_JMP,
-    "", //IR_JZ,
-    "", //IR_CALL,
-    "", //IR_RET,
-    "", //IR_SET_FRAME_PTR,
-    // IR_LEAVE,
-    "" //IR_EXIT
 
+static const char * const IRcmpAsmStr[] = {
+    "cmpltsd  xmm0, [rsp]", //CMP_LT,
+    "cmpnlesd xmm0, [rsp]", //CMP_GT,
+    "cmplesd  xmm0, [rsp]", //CMP_LE,
+    "cmpnltsd xmm0, [rsp]", //CMP_GE,
+    "cmpeqsd  xmm0, [rsp]", //CMP_EQ,
+    "cmpneqsd xmm0, [rsp]"  //CMP_NEQ
 };
 
 static BackendStatus_t includeStdlib(Backend_t *backend, FILE *out);
@@ -108,6 +85,8 @@ static BackendStatus_t emitStart(Backend_t *backend, FILE *out) {
 
 static BackendStatus_t translateIRarray(Backend_t *backend, FILE *out);
 
+static BackendStatus_t translateBinaryMath(Backend_t *backend, FILE *out, IRNode_t *curNode);
+
 BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
     assert(backend);
     assert(backend->IR.nodes); assert(backend->IR.size > 0);
@@ -152,10 +131,7 @@ static BackendStatus_t translateIRarray(Backend_t *backend, FILE *out) {
                 break;
 
             case IR_ADD: case IR_SUB: case IR_MUL: case IR_DIV:
-                asm_emit("\tmovq xmm0, [rsp+8]\n");
-                asm_emit("\t%s\n", IRasmStr[curNode->type]);
-                asm_emit("\tadd  rsp, 8\n");
-                asm_emit("\tmovq [rsp], xmm0\n");
+                RET_ON_ERROR(translateBinaryMath(backend, out, curNode));
                 break;
 
             case IR_SQRT:
@@ -164,17 +140,16 @@ static BackendStatus_t translateIRarray(Backend_t *backend, FILE *out) {
                 asm_emit("\tmovq [rsp], xmm0\n");
                 break;
 
-            case IR_CMPLT: case IR_CMPGT: case IR_CMPLE:
-            case IR_CMPGE: case IR_CMPEQ: case IR_CMPNEQ:
+            case IR_CMP:
                 asm_emit("\tmovq xmm0, [rsp+8]\n");
-                asm_emit("\t%s\n", IRasmStr[curNode->type]);
+                asm_emit("\t%s\n", IRcmpAsmStr[curNode->cmpType]);
                 asm_emit("\tadd  rsp, 8\n");
                 asm_emit("\tandpd xmm0, xmm7\n"); //xmm7 is 1.0
                 asm_emit("\tmovq [rsp], xmm0\n");
                 break;
 
             case IR_PUSH:
-                switch(curNode->extra) {
+                switch(curNode->pushType) {
                     case PUSH_IMM:
                         asm_emit("\tmov  rcx, 0x%lX\n", *(uint64_t *)&curNode->dval);
                         asm_emit("\tpush rcx\n");
@@ -253,6 +228,25 @@ static BackendStatus_t translateIRarray(Backend_t *backend, FILE *out) {
         }
 
     }
+
+    return BACKEND_SUCCESS;
+}
+
+static BackendStatus_t translateBinaryMath(Backend_t *backend, FILE *out, IRNode_t *curNode) {
+    assert(backend); assert(out); assert(curNode);
+
+    asm_emit("\tmovq xmm0, [rsp+8]\n");
+
+    switch(curNode->type) {
+        case IR_ADD: asm_emit("\taddsd xmm0, [rsp]\n"); break;
+        case IR_SUB: asm_emit("\tsubsd xmm0, [rsp]\n"); break;
+        case IR_MUL: asm_emit("\tmulsd xmm0, [rsp]\n"); break;
+        case IR_DIV: asm_emit("\tdivsd xmm0, [rsp]\n"); break;
+        default: assert(0);
+    }
+
+    asm_emit("\tadd  rsp, 8\n");
+    asm_emit("\tmovq [rsp], xmm0\n");
 
     return BACKEND_SUCCESS;
 }

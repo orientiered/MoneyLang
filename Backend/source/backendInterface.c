@@ -68,7 +68,10 @@ BackendStatus_t BackendDelete(Backend_t *context) {
 static void loadStdlibFunctions(Backend_t *backend) {
     NameTable_t *nameTable = &backend->nameTable;
     insertIdentifier(nameTable, STDLIB_IN_FUNC_NAME);
-    insertIdentifier(nameTable, STDLIB_OUT_FUNC_NAME);
+
+    int outId = insertIdentifier(nameTable, STDLIB_OUT_FUNC_NAME);
+    // stdlib out takes 1 argument for input
+    nameTable->identifiers[outId].argsCount = 1;
 }
 
 BackendStatus_t BackendRun(Backend_t *context) {

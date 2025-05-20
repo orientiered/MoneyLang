@@ -298,7 +298,7 @@ BackendStatus_t IRdump(BackendContext_t *backend) {
         fprintf(out, "\t TYPE=%s, COMMENT=%s\n", IRNodeTypeStrings[node->type], node->comment);
         if (node->type == IR_JMP)
             fprintf(out, "\tjmp to node %ji\n", node->addr.offset);
-        else if (node->type == IR_PUSH && node->extra == PUSH_IMM)
+        else if (node->type == IR_PUSH && node->pushType == PUSH_IMM)
             fprintf(out, "\tpush %lf", node->dval);
 
 
@@ -317,7 +317,7 @@ static BackendStatus_t convertASTtoIRrecursive(BackendContext_t *backend, Node_t
     if (node->type == NUMBER) {
         logPrint(L_ZERO, 0, "ASTtoIR: Converting number\n");
         IRNode_t *irNode = IRnodeCtor(backend, IR_PUSH);
-        irNode->extra = PUSH_IMM;
+        irNode->pushType = PUSH_IMM;
 
         irNode->dval = node->value.number;
 
@@ -327,7 +327,7 @@ static BackendStatus_t convertASTtoIRrecursive(BackendContext_t *backend, Node_t
     if (node->type == IDENTIFIER) {
         logPrint(L_ZERO, 0, "ASTtoIR: Converting identifier\n");
         IRNode_t *irNode = IRnodeCtor(backend, IR_PUSH);
-        irNode->extra = PUSH_MEM;
+        irNode->pushType = PUSH_MEM;
 
         int nameId = node->value.id;
 
@@ -428,6 +428,7 @@ static BackendStatus_t convertBinaryArithmetic(BackendContext_t *backend, Node_t
 
     IRNode_t *irNode = IRgetNewNode(backend);
 
+
     switch(node->value.op) {
         case OP_ADD: irNode->type = IR_ADD; break;
         case OP_SUB: irNode->type = IR_SUB; break;
@@ -468,13 +469,15 @@ static BackendStatus_t convertComparison(BackendContext_t *backend, Node_t *node
 
     IRNode_t *irNode = IRgetNewNode(backend);
 
+    irNode->type = IR_CMP;
+
     switch(node->value.op) {
-        case OP_LABRACKET: irNode->type = IR_CMPLT;  break;
-        case OP_RABRACKET: irNode->type = IR_CMPGT;  break;
-        case OP_LESS_EQ:   irNode->type = IR_CMPLE;  break;
-        case OP_GREAT_EQ:  irNode->type = IR_CMPGE;  break;
-        case OP_EQUAL:     irNode->type = IR_CMPEQ;  break;
-        case OP_NEQUAL:    irNode->type = IR_CMPNEQ; break;
+        case OP_LABRACKET: irNode->cmpType = CMP_LT;  break;
+        case OP_RABRACKET: irNode->cmpType = CMP_GT;  break;
+        case OP_LESS_EQ:   irNode->cmpType = CMP_LE;  break;
+        case OP_GREAT_EQ:  irNode->cmpType = CMP_GE;  break;
+        case OP_EQUAL:     irNode->cmpType = CMP_EQ;  break;
+        case OP_NEQUAL:    irNode->cmpType = CMP_NEQ; break;
 
         default: assert(0);
     }
@@ -505,7 +508,7 @@ static BackendStatus_t convertAssign(BackendContext_t *backend, Node_t *node) {
 
     // popping rvalue to lvalue
     IRNode_t *irNode = IRnodeCtor(backend, IR_POP);
-    irNode->extra = POP_MEM;
+    irNode->pushType = POP_MEM;
 
     int nameId = node->left->value.id;
     RET_ON_ERROR(LocalsStackSearchAddr(nameId, backend, irNode));
@@ -719,7 +722,7 @@ static BackendStatus_t convertCall(BackendContext_t *backend, Node_t *node) {
     } else {
         IRprintf(backend, "Pushing call result");
         IRNode_t *pushResult = IRnodeCtor(backend, IR_PUSH);
-        pushResult->extra = PUSH_REG;
+        pushResult->pushType = PUSH_REG;
     }
 
     callNode->addr.offset = node->left->value.id;
@@ -760,11 +763,11 @@ static BackendStatus_t convertIn(BackendContext_t *backend, Node_t *node) {
     //TODO: maybe rework it
     //? Should I push result of the function right after the call?
     IRNode_t *resultPush = IRnodeCtor(backend, IR_PUSH);
-    resultPush->extra = PUSH_REG; // pushing rax
+    resultPush->pushType = PUSH_REG; // pushing rax
 
     // popping rvalue to lvalue
     IRNode_t *irNode = IRnodeCtor(backend, IR_POP);
-    irNode->extra = POP_MEM;
+    irNode->pushType = POP_MEM;
 
     int nameId = node->left->value.id;
     RET_ON_ERROR(LocalsStackSearchAddr(nameId, backend, irNode));
