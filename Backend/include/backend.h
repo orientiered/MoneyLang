@@ -4,73 +4,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "utils.h"
-#include "nameTable.h"
-#include "Context.h"
+#include "backendStructs.h"
 
 const char * const STDLIB_IN_FUNC_NAME  = "__stdlib_in";
 const char * const STDLIB_OUT_FUNC_NAME = "__stdlib_out";
 const char * const STDLIB_ASM_FILE      = "Backend/source/stdlib.s";
-
-typedef struct LocalVar_t {
-    int id;
-    int64_t address;
-} LocalVar_t;
-
-typedef struct LocalsStack_t {
-    LocalVar_t *vars;
-    size_t size;
-    size_t capacity;
-} LocalsStack_t;
-
-typedef enum BackendStatus_t {
-    BACKEND_SUCCESS,
-    BACKEND_AST_ERROR,
-    BACKEND_FILE_ERROR,
-    BACKEND_WRITE_ERROR,
-    BACKEND_TYPE_ERROR,
-    BACKEND_SCOPE_ERROR,
-    BACKEND_NESTED_FUNC_ERROR,
-    BACKEND_WRONG_ARGS_NUMBER,
-    BACKEND_UNSUPPORTED_IR,
-    BACKEND_ERROR
-} BackendStatus_t;
-
-typedef enum BackendMode_t {
-    BACKEND_SIMPLE = 0,
-    BACKEND_TAXES = 1
-} BackendMode_t;
-
-/* ============= Intermediate representation ======================== */
-// IR for stack-based operations
-
-typedef enum {
-    IR_NOP, ///< use for commentaries
-    // binary arithmetical operations
-    IR_ADD,
-    IR_SUB,
-    IR_MUL,
-    IR_DIV,
-    // unary arithmetical operations
-    IR_SQRT,
-    // comparison operations
-    IR_CMP,
-    // assign
-    IR_ASSIGN, //? Maybe redundant
-    IR_PUSH,
-    IR_POP,
-    IR_VAR_DECL,
-    // control flow
-    IR_LABEL,
-    IR_JMP,
-    IR_JZ,
-    IR_CALL,
-    IR_RET,
-    IR_SET_FRAME_PTR,
-    // IR_LEAVE,
-    IR_EXIT
-
-} IRNodeType_t;
 
 static const char * const IRNodeTypeStrings[] = {
     "IR_NOP", ///< use for commentarie"
@@ -84,7 +22,6 @@ static const char * const IRNodeTypeStrings[] = {
     // comparison operations
     "IR_CMP",
     // assign
-    "IR_ASSIGN", //? Maybe redundant
     "IR_PUSH",
     "IR_POP",
     "IR_VAR_DECL",
@@ -99,79 +36,13 @@ static const char * const IRNodeTypeStrings[] = {
     "IR_EXIT"
 };
 
-enum IRPushPopType {
-    PUSH_IMM,
-    PUSH_MEM,
-    PUSH_REG, // push rax
-    POP_MEM
-};
-
-enum IRCmpType {
-    CMP_LT,
-    CMP_GT,
-    CMP_LE,
-    CMP_GE,
-    CMP_EQ,
-    CMP_NEQ
-};
-
-typedef struct {
-    int64_t offset;
-} IRaddr_t;
-
-
-typedef struct {
-    IRNodeType_t    type;
-    union {
-        double dval;
-        IRaddr_t addr;
-
-    };
-    bool local;
-
-    union {
-        enum IRPushPopType pushType;
-        enum IRCmpType     cmpType;
-    };
-
-    const char *comment;
-} IRNode_t;
-
-typedef struct {
-    IRNode_t *nodes;
-    uint32_t size;
-    uint32_t capacity;
-
-    char *comments;
-    char *commentPtr;
-} IR_t;
+const size_t IR_MAX_SIZE = 4096;
+const size_t IR_MAX_COMMENTS_LEN = 16384;
 
 IR_t IRCtor(size_t capacity);
 void IRDtor(IR_t *ir);
 
-const size_t IR_MAX_SIZE = 4096;
-const size_t IR_MAX_COMMENTS_LEN = 16384;
 /* ====================================================================== */
-
-typedef struct BackendContext_t {
-    const char *inputFileName;
-    const char *outputFileName;
-    const char *text;
-
-    NameTable_t nameTable;
-
-    MemoryArena_t treeMemory;
-    Node_t *tree;
-    IR_t IR;
-
-    int mode;
-
-    LocalsStack_t stk;
-    bool inFunction;
-    int operatorCounter;
-    int ifCounter;
-    int whileCounter;
-} Backend_t;
 
 BackendStatus_t IRdump(BackendContext_t *backend);
 BackendStatus_t convertASTtoIR(BackendContext_t *backend, Node_t *ast);
@@ -179,10 +50,6 @@ BackendStatus_t convertASTtoIR(BackendContext_t *backend, Node_t *ast);
 BackendStatus_t LocalsStackInit(LocalsStack_t *stk, size_t capacity);
 BackendStatus_t LocalsStackDelete(LocalsStack_t *stk);
 
-enum ScopeType {
-    FUNC_SCOPE = -1,
-    NORMAL_SCOPE = -2
-};
 
 BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id);
 //searches variable in stack and prints it

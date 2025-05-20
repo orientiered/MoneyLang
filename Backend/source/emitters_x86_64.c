@@ -163,6 +163,8 @@ int32_t emitMovqXmmMemBaseDisp32(emitCtx_t *ctx, XMM_t dest, REG_t base, int32_t
     assert(ctx);
     if (base >= R_R8) TODO("r8+ registers are not supported");
 
+    asm_emit("\tmovq %s, [%s + (%d)]\n", XMM_STRINGS[dest].str, REG_STRINGS[base].str, disp);
+
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
@@ -170,7 +172,7 @@ int32_t emitMovqXmmMemBaseDisp32(emitCtx_t *ctx, XMM_t dest, REG_t base, int32_t
     opcode[size++] = 0x0F;
     opcode[size++] = 0x7E;
 
-    opcode[size++] = modRM(10, dest, base);
+    opcode[size++] = modRM(0b10, dest, base);
     if (base == R_RSP)
         opcode[size++] = SIB(0, R_RSP, R_RSP); // index is not used, base is RSP
 
@@ -181,9 +183,11 @@ int32_t emitMovqXmmMemBaseDisp32(emitCtx_t *ctx, XMM_t dest, REG_t base, int32_t
     return size;
 }
 
-int32_t emitMovqMemBaseDisp32Xmm(emitCtx_t *ctx, REG_t base, int32_t disp, XMM_t dest) {
+int32_t emitMovqMemBaseDisp32Xmm(emitCtx_t *ctx, REG_t base, int32_t disp, XMM_t src) {
     assert(ctx);
     if (base >= R_R8) TODO("r8+ registers are not supported");
+
+    asm_emit("\tmovq [%s + (%d)], %s\n", REG_STRINGS[base].str, disp, XMM_STRINGS[src].str);
 
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
@@ -192,7 +196,7 @@ int32_t emitMovqMemBaseDisp32Xmm(emitCtx_t *ctx, REG_t base, int32_t disp, XMM_t
     opcode[size++] = 0x0F;
     opcode[size++] = 0xD6;
 
-    opcode[size++] = modRM(10, dest, base);
+    opcode[size++] = modRM(0b10, src, base);
     if (base == R_RSP)
         opcode[size++] = SIB(0, R_RSP, R_RSP); // index is not used, base is RSP
 
@@ -215,7 +219,7 @@ int32_t emitMovqXmmReg64(emitCtx_t *ctx, XMM_t dest, REG_t src) {
     opcode[size++] = REX_W;
     opcode[size++] = 0x0F;
     opcode[size++] = 0x6e;
-    opcode[size++] = modRM(11, dest, src);
+    opcode[size++] = modRM(0b11, dest, src);
 
     bin_emit();
     return size;
@@ -366,7 +370,7 @@ int32_t emitSqrtsdXmm(emitCtx_t *ctx, XMM_t dest) {
     opcode[size++] = 0x0F;
     opcode[size++] = 0x51;
 
-    opcode[size++] = modRM(11, dest, dest);
+    opcode[size++] = modRM(0b11, dest, dest);
 
     bin_emit();
     return size;
@@ -383,7 +387,7 @@ int32_t emitAndpd(emitCtx_t *ctx, XMM_t dest, XMM_t src) {
     opcode[size++] = 0x0F;
     opcode[size++] = 0x54;
 
-    opcode[size++] = modRM(11, dest, src);
+    opcode[size++] = modRM(0b11, dest, src);
 
     bin_emit();
     return size;
