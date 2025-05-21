@@ -109,8 +109,8 @@ asmTest:
 	nasm -felf64 asm_tests/$(FILE).s -l asm_tests/$(FILE).lst -o /dev/null
 
 stdlib:
-	nasm -felf64 source/stdlib.s -o build/stdlib.o
-	ld build/stdlib.o -o stdlib.exe
+	nasm -felf64 stdlib/stdlib.s -o build/stdlib.o
+	ld build/stdlib.o -o stdlib/stdlib.elf
 
 NODEPS = clean
 

@@ -52,46 +52,89 @@ static int32_t translateBinaryMath(Backend_t *backend, IRNode_t *curNode);
 static BackendStatus_t emitCtxCtor(Backend_t *backend);
 static BackendStatus_t emitCtxDtor(Backend_t *backend);
 
-static BackendStatus_t includeStdlib(Backend_t *backend);
+static BackendStatus_t includeAsmStdlib(Backend_t *backend);
+
+static int32_t includeBinStdlib(emitCtx_t *emitter, int64_t *stdlib_inAddr, int64_t *stdlib_outAddr);
 
 
+static char *readFile(const char *fileName, size_t *size) {
+    FILE *file = fopen(fileName, "rb");
+    if (!file) {
+        logPrint(L_ZERO, 1, "Failed to open file '%s'\n", fileName);
+        return NULL;
+    }
 
-static BackendStatus_t includeStdlib(Backend_t *backend) {
+    fseek(file, 0, SEEK_END);
+    int64_t fileLen = ftell(file);
+    assert(fileLen > 0);
+    fseek(file, 0, SEEK_SET);
+
+    logPrint(L_ZERO, 0, "'%s' length in bytes: %ji\n", fileName, fileLen);
+
+    char *buffer = (char *) calloc(fileLen, 1);
+    assert(buffer);
+
+    int64_t bytesRead = fread(buffer, 1, fileLen, file);
+    assert(bytesRead == fileLen);
+    fclose(file);
+
+    *size = fileLen;
+    return buffer;
+}
+
+
+static void writeBinBuffer(emitCtx_t *ctx, const void *src, const size_t size) {
+    memcpy(ctx->binBuffer + ctx->bufferSize, src, size);
+    ctx->bufferSize += size;
+}
+
+
+static BackendStatus_t includeAsmStdlib(Backend_t *backend) {
     assert(backend);
 
     logPrint(L_ZERO, 0, "Including stdlib\n");
 
     // Opening stdlib file
-    FILE *stdlibFile = fopen(STDLIB_ASM_FILE, "r");
-    if (!stdlibFile) {
-        logPrint(L_ZERO, 1, "Failed to open stdlib file '%s'\n", STDLIB_ASM_FILE);
-        return BACKEND_FILE_ERROR;
-    }
-
-    // Getting length of the file
-    fseek(stdlibFile, 0, SEEK_END);
-    int64_t fileLen = ftell(stdlibFile);
-    assert(fileLen > 0);
-    fseek(stdlibFile, 0, SEEK_SET);
-
-    logPrint(L_ZERO, 0, "Stdlib length in bytes: %ji\n", fileLen);
-
-
-    // Reading it to the buffer
-    char *buffer = (char *) calloc(fileLen, 1);
-    int64_t bytesRead = fread(buffer, 1, fileLen, stdlibFile);
-    assert(bytesRead == fileLen);
+    size_t fileLen = 0;
+    char *buffer = readFile(STDLIB_ASM_FILE, &fileLen);
+    if (!buffer) return BACKEND_FILE_ERROR;
 
     // Writing stdlib to the resulting file
-    int64_t bytesWrited = fwrite(buffer, 1, fileLen, backend->emitter.asmFirstPass);
+    size_t bytesWrited = fwrite(buffer, 1, fileLen, backend->emitter.asmFirstPass);
     assert(bytesWrited == fileLen);
 
     logPrint(L_ZERO, 0, "Writing stdlib to output file finished\n");
 
     free(buffer);
-    fclose(stdlibFile);
 
     return BACKEND_SUCCESS;
+}
+
+
+static int32_t includeBinStdlib(emitCtx_t *emitter, int64_t *stdlib_inAddr, int64_t *stdlib_outAddr) {
+    size_t fileLen = 0;
+    uint8_t *stdlib = (uint8_t *) readFile(STDLIB_BIN_FILE, &fileLen);
+    if (!stdlib) {
+        logPrint(L_ZERO, 1, "Compile stdlib first\n");
+        return -1;
+    }
+
+    Elf64_Ehdr *hdr = (Elf64_Ehdr *) stdlib;
+    assert(hdr->e_phnum >= 2);
+
+    Elf64_Phdr *phdrCode = (Elf64_Phdr *) (stdlib + sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr));
+
+    size_t codeSize = phdrCode->p_filesz;
+    size_t codeStartAddr = phdrCode->p_offset;
+    logPrint(L_ZERO, 1, "Stdlib code size: %zu\n", codeSize);
+
+    *stdlib_outAddr = *(stdlib + codeStartAddr);
+    *stdlib_inAddr = *(int64_t *)(stdlib + codeStartAddr + 8);
+    writeBinBuffer(emitter, stdlib + codeStartAddr, codeSize);
+
+    free(stdlib);
+
+    return codeSize;
 }
 
 
@@ -151,10 +194,6 @@ static BackendStatus_t emitCtxDtor(Backend_t *backend) {
 }
 
 
-static void writeBinBuffer(emitCtx_t *ctx, const void *src, const size_t size) {
-    memcpy(ctx->binBuffer + ctx->bufferSize, src, size);
-    ctx->bufferSize += size;
-}
 
 BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
     assert(backend);
@@ -164,35 +203,49 @@ BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
 
     emitCtx_t *emitter = &backend->emitter;
 
-    Elf64_Ehdr elfHdr = generateElfHeader(0x401000, 2);
-
-    size_t segmentElfVaddr = 0x400000,
-           segmentElfSize = sizeof(Elf64_Ehdr) + 2 * sizeof(Elf64_Phdr);
-    Elf64_Phdr phdrElf  =
-        generateElfPheader(PF_R, 0, segmentElfVaddr, segmentElfSize);
-
-    size_t segmentCodeVaddr = 0x401000;
-    Elf64_Phdr phdrCode =
-        generateElfPheader(PF_R | PF_X, 0x1000, segmentCodeVaddr, 0);
 
     /// Including stdlib
     /// At the moment only to first pass asm file
-    includeStdlib(backend);
+    includeAsmStdlib(backend);
 
-    // First pass
-    // 1. Translating to asm with commentaries and labels
-    // 2. Calculating addresses relative to _start and saving them in blocks
+    /// Including binary stdlib
+    emitter->bufferSize = 0x1000; // code starts from this address
+    int64_t stdlib_inAddr = 0, stdlib_outAddr = 0;
+    int64_t stdlibSize = includeBinStdlib(emitter, &stdlib_inAddr, &stdlib_outAddr);
+
+    /// Resolving adresses of standard functions
+    int stdlib_inIdx = findIdentifier(&backend->nameTable, STDLIB_IN_FUNC_NAME);
+    int stdlib_outIdx = findIdentifier(&backend->nameTable, STDLIB_OUT_FUNC_NAME);
+    logPrint(L_ZERO, 1, "Stdlib: in -- 0x%lX, out -- 0x%lX\n", stdlib_inAddr, stdlib_outAddr);
+    backend->nameTable.identifiers[stdlib_inIdx].address  = -stdlibSize + stdlib_inAddr;
+    backend->nameTable.identifiers[stdlib_outIdx].address = -stdlibSize + stdlib_outAddr;
+
+    /// First pass
+    /// 1. Translating to asm with commentaries and labels
+    /// 2. Calculating addresses relative to _start and saving them in blocks
     int64_t codeSize = translateIRarray(backend);
-    phdrCode.p_filesz = (size_t) codeSize;
-    phdrCode.p_memsz = (size_t) codeSize;
 
+
+    /// Creating elf headers
+    Elf64_Ehdr elfHdr = generateElfHeader(0x401000 + (uint64_t) stdlibSize, 2);
+
+    size_t segmentElfVaddr = 0x400000,
+           segmentElfSize = sizeof(Elf64_Ehdr) + 2 * sizeof(Elf64_Phdr);
+    Elf64_Phdr phdrElf  = generateElfPheader(PF_R, 0, segmentElfVaddr, segmentElfSize);
+
+    size_t segmentCodeVaddr = 0x401000;
+    Elf64_Phdr phdrCode = generateElfPheader(PF_R | PF_X, 0x1000, segmentCodeVaddr, stdlibSize + codeSize);
+
+    /// Writing elf headears
+    emitter->bufferSize = 0;
     writeBinBuffer(emitter, &elfHdr, sizeof(elfHdr));
     writeBinBuffer(emitter, &phdrElf, sizeof(phdrElf));
     writeBinBuffer(emitter, &phdrCode, sizeof(phdrCode));
-    emitter->bufferSize = 0x1000; // code starts from this address
 
-    // Second pass
-    // Emitting IR to binary file and to asm file for debugging purposes
+    /// Second pass
+    /// Fixing pointer if buffer
+    emitter->bufferSize = 0x1000 + (uint64_t) stdlibSize;
+    /// Emitting IR to binary file and to asm file for debugging purposes
     emitter->emitting = true;
     translateIRarray(backend);
 

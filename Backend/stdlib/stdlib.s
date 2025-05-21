@@ -133,7 +133,7 @@ __stdlib_out:
 ;   none
 ; Ret:
 ;   rax - scanned floating point number
-; Destr: syscall
+; Destr: syscall, r13, r8
 ;======================================================;
 
 __constants_table:
@@ -155,15 +155,7 @@ fp10 dq 10.0
     mov rsi, r8 ; read to buffer in rsp
     mov rdx, 1   ; one symbol
 
-    ; sub  rsp, 24
-    ; movq [rsp],    xmm0
-    ; movq [rsp+8],  xmm1
-    ; movq [rsp+16], xmm2
     syscall
-    ; movq xmm0, [rsp]
-    ; movq xmm1, [rsp+8]
-    ; movq xmm2, [rsp+16]
-    ; add  rsp, 24
 
     xor rsi, rsi
     mov sil, [r8]
@@ -181,9 +173,10 @@ __stdlib_in:
     movq xmm2, [fp1] ; xmm2 = 1
 
     MACRO_readchar
+    xor  r13, r13
     cmp  sil, '-'
     jne  .skipMinus
-        mov BYTE [rsp+1], 1 ; [rsp+1] signals if we have minus sign
+        mov r13, 1 ; r13 signals if we have minus sign
         MACRO_readchar
     .skipMinus:
 
@@ -246,9 +239,9 @@ __stdlib_in:
     divsd xmm1, xmm2 ; shifting point to correct position
     addsd xmm0, xmm1 ; result = int part + float part
 
-    cmp BYTE [rsp + 1], 1
+    test r13, r13
     ;----- Setting sign bit -------------------
-    jne .skipNegation
+    jz .skipNegation
         mov  rax, 0x8000000000000000 ; only sign bit
         movq xmm2, rax
         por  xmm0, xmm2 ; setting sign bit

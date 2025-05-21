@@ -8,7 +8,9 @@
 
 const char * const STDLIB_IN_FUNC_NAME  = "__stdlib_in";
 const char * const STDLIB_OUT_FUNC_NAME = "__stdlib_out";
-const char * const STDLIB_ASM_FILE      = "Backend/source/stdlib.s";
+
+const char * const STDLIB_ASM_FILE      = "Backend/stdlib/stdlib.s";
+const char * const STDLIB_BIN_FILE      = "Backend/stdlib/stdlib.elf";
 
 static const char * const IRNodeTypeStrings[] = {
     "IR_NOP", ///< use for commentarie"
