@@ -15,7 +15,7 @@ typedef struct {
     enum IdentifierType type;
     bool local;
     size_t argsCount;
-    size_t address;
+    int64_t address;
 } Identifier_t;
 
 typedef struct {

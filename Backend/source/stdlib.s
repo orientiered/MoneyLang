@@ -9,6 +9,15 @@ global __stdlib_out
 global __stdlib_in
 global _start
 
+;================================================;
+; We store here adresses of stdlib functions
+; They are relative to the beginning of .text section
+; When reading compiled stdlib binary, we can read them and resolve calls to stdlib
+;================================================;
+dq __stdlib_out - $
+dq __stdlib_in  - $ + 8
+;===============================================;
+
 FLOAT_TOTAL_DIGITS equ 6
 ; ============================================== ;
 ; Print floating point number to stdout
@@ -251,30 +260,3 @@ __stdlib_in:
     pop  rbp
     ret
 ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~;
-
-; _start:
-;     ; mov rax, 0x3FF0000000000000 ; 1
-;     ; mov rax, 0x3F7988D2A1F8E3AC ; 1
-;     mov rax, 0x4046E3D70A3D70A4; 45.78
-;     push rax
-;     call __stdlib_out
-;     pop  rax
-;
-;     call __stdlib_in
-;
-;     ; movq  xmm0, rax
-;     ; mulsd xmm0, [fp2]
-;     ; movq  rax, xmm0
-;     push  rax
-;
-;     call __stdlib_out
-;
-;     pop  rax
-;     mov rax, 0x4046E3D70A3D70A4; 45.78
-;     push rax
-;     call __stdlib_out
-;     pop  rax
-;
-;     mov rax, 0x3c
-;     mov rdi, 0
-;     syscall

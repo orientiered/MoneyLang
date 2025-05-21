@@ -36,6 +36,7 @@ const uint8_t REX_B    = REX_CODE | 0b00000001; ///> Extension of the ModR/M r/m
 #define _REX(W, R, X, B) (REX_CODE | REX_W*W | REX_R*R | REX_X*X | REX_B * B)
 
 const size_t MAX_OPCODE_LEN = 16;
+const int64_t EMIT_CALL_INSTR_SIZE = 1 + 4;
 
 /* =============================  Push and pop ==================================== */
 int32_t emitPushReg64(emitCtx_t *ctx, REG_t reg);

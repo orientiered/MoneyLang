@@ -76,6 +76,9 @@ static uint32_t IRgetNodeIdx(BackendContext_t *backend, const IRNode_t *irNode) 
 }
 
 /// @brief Create IR_LABEL node and return its index in IR array
+/// By default label is local
+/// Global labels are used for function declarations
+
 static uint32_t IRcreateLabel(BackendContext_t *backend, const char *fmt, ...) __attribute__ ( (format (printf, 2, 3)) );
 
 static uint32_t IRcreateLabel(BackendContext_t *backend, const char *fmt, ...) {
@@ -92,6 +95,8 @@ static uint32_t IRcreateLabel(BackendContext_t *backend, const char *fmt, ...) {
     ir->commentPtr += vsprintf(ir->commentPtr, fmt, args) + 1;
 
     va_end(args);
+
+    label->local = true;
 
     return idx;
 }
@@ -275,10 +280,14 @@ BackendStatus_t convertASTtoIR(BackendContext_t *backend, Node_t *ast) {
     IR_t ir = IRCtor(IR_MAX_SIZE);
     backend->IR = ir;
 
+    // Adding start node
+    IRprintf(backend, "--------- Program start ----------");
+    IRnodeCtor(backend, IR_START);
+
     RET_ON_ERROR(convertASTtoIRrecursive(backend, ast));
 
     // adding exit node
-    IRprintf(backend, "program exit");
+    IRprintf(backend, "--------- Program exit -------------");
     IRnodeCtor(backend, IR_EXIT);
 
     return BACKEND_SUCCESS;
@@ -646,7 +655,12 @@ static BackendStatus_t convertFuncDecl(BackendContext_t *backend, Node_t *node) 
     IRNode_t *jumpDeclEnd = IRnodeCtor(backend, IR_JMP);
 
     uint32_t funcLabelIdx = IRcreateLabel(backend, "%s", funcName);
-    funcId->address = funcLabelIdx;
+    IRNode_t *funcLabel = &backend->IR.nodes[funcLabelIdx];
+    // Setting up function label
+    funcLabel->local = false;                               // global label
+    funcLabel->addr.offset = funcHeader->left->value.id;    // Index of function in nameTable
+
+    // funcId->address = funcLabelIdx;
 
     /* Processing function arguments */
     // If there is more then one argument, they are separated with OP_SEP
@@ -725,7 +739,7 @@ static BackendStatus_t convertCall(BackendContext_t *backend, Node_t *node) {
         pushResult->pushType = PUSH_REG;
     }
 
-    callNode->addr.offset = node->left->value.id;
+    callNode->addr.offset = node->left->value.id; // id of function in nameTable
 
     return BACKEND_SUCCESS;
 }

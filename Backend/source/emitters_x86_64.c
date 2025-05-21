@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 #include "emitters_x86_64.h"
 
@@ -13,7 +14,22 @@
 #define asm_emit(...) if (ctx->emitting) fprintf(ctx->asmFile, __VA_ARGS__)
 #define bin_emit() if (ctx->emitting) fwrite(opcode, 1, (size_t)size, ctx->binFile)
 
-#define TRUNC(reg) ((reg >= R_R8) ? reg-8 : reg)
+#define PUT_BYTE(byte) do {opcode[size++] = byte; } while(0)
+#define PUT_IMM32(imm32) \
+    do {\
+        uint32_t immediate = (uint32_t) imm32;\
+        memcpy(opcode+size, &immediate, sizeof(uint32_t));\
+        size += 4;\
+    } while(0)
+
+#define PUT_IMM64(imm64) \
+    do {\
+        uint64_t immediate = (uint64_t) imm64;\
+        memcpy(opcode+size, &immediate, sizeof(uint64_t));\
+        size += 8;\
+    } while(0)
+
+#define TRUNC(reg) (uint8_t) ((reg >= R_R8) ? reg-8 : reg)
 /* ----------------------------------------------------------- */
 const uint8_t MOD_RM_REG = 0b11;
 
@@ -45,9 +61,9 @@ int32_t emitPushReg64(emitCtx_t *ctx, REG_t reg) {
     int32_t size = 0;
 
     if (reg >= R_R8)
-        opcode[size++] = REX_B;
+        PUT_BYTE(REX_B);
 
-    opcode[size++] = 0x50 + TRUNC(reg);
+    PUT_BYTE(0x50 + TRUNC(reg));
 
     bin_emit();
     return size;
@@ -65,12 +81,11 @@ int32_t emitPushMemBaseDisp32(emitCtx_t *ctx, REG_t base, int32_t disp) {
     int32_t size = 0;
 
     if (base >= R_R8)
-        opcode[size++] = REX_B;
+        PUT_BYTE(REX_B);
 
-    opcode[size++] = 0xFF; //  push opcode
-    opcode[size++] = modRM(0b10, 6, TRUNC(base)); // reg = /6
-    *(uint32_t*)(opcode+size) = (uint32_t) disp; // immediate
-    size += 4;
+    PUT_BYTE(0xFF); //  push opcode
+    PUT_BYTE(modRM(0b10, 6, TRUNC(base))); // reg = /6
+    PUT_IMM32(disp); // immediate
 
     bin_emit();
     return size;
@@ -87,9 +102,9 @@ int32_t emitPopReg64(emitCtx_t *ctx, REG_t reg) {
     int32_t size = 0;
 
     if (reg >= R_R8)
-        opcode[size++] = REX_B;
+        PUT_BYTE(REX_B);
 
-    opcode[size++] = 0x58 + TRUNC(reg);
+    PUT_BYTE(0x58 + TRUNC(reg));
 
     bin_emit();
     return size;
@@ -107,12 +122,11 @@ int32_t emitPopMemBaseDisp32(emitCtx_t *ctx, REG_t base, int32_t disp) {
     int32_t size = 0;
 
     if (base >= R_R8)
-        opcode[size++] = REX_B;
+        PUT_BYTE(REX_B);
 
-    opcode[size++] = 0x8F; //  pop opcode
-    opcode[size++] = modRM(0b10, 0, TRUNC(base)); // reg = /0
-    *(uint32_t*)(opcode+size) = (uint32_t) disp; // immediate
-    size += 4;
+    PUT_BYTE(0x8F); //  pop opcode
+    PUT_BYTE(modRM(0b10, 0, TRUNC(base))); // reg = /0
+    PUT_IMM32(disp); // immediate
 
     bin_emit();
     return size;
@@ -130,9 +144,9 @@ int32_t emitMovRegReg64(emitCtx_t *ctx, REG_t dest, REG_t src) {
     int32_t size = 0;
 
     uint8_t rex = REX_W | (REX_R * (src >= R_R8)) | (REX_B * (dest >= R_R8));
-    opcode[size++] = rex;
-    opcode[size++] = 0x89; // mov r/m64, r64 opcode
-    opcode[size++] = modRM(MOD_RM_REG, TRUNC(src), TRUNC(dest));
+    PUT_BYTE(rex);
+    PUT_BYTE(0x89); // mov r/m64, r64 opcode
+    PUT_BYTE(modRM(MOD_RM_REG, TRUNC(src), TRUNC(dest)));
 
     bin_emit();
     return size;
@@ -148,10 +162,9 @@ int32_t emitMovRegImm64(emitCtx_t *ctx, REG_t dest, uint64_t imm) {
     int32_t size = 0;
 
     uint8_t rex = REX_W | (REX_B * (dest >= R_R8));
-    opcode[size++] = rex;
-    opcode[size++] = 0xB8 + TRUNC(dest); // mov r64, imm64 opcode
-    *(uint64_t*)(opcode+size) = imm; // immediate
-    size += 8;
+    PUT_BYTE(rex);
+    PUT_BYTE(0xB8 + TRUNC(dest)); // mov r64, imm64 opcode
+    PUT_IMM64(imm); // immediate
 
     bin_emit();
     return size;
@@ -168,16 +181,16 @@ int32_t emitMovqXmmMemBaseDisp32(emitCtx_t *ctx, XMM_t dest, REG_t base, int32_t
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0xF3;
-    opcode[size++] = 0x0F;
-    opcode[size++] = 0x7E;
+    PUT_BYTE(0xF3);
+    PUT_BYTE(0x0F);
+    PUT_BYTE(0x7E);
 
-    opcode[size++] = modRM(0b10, dest, base);
+    PUT_BYTE(modRM(0b10, dest, base));
     if (base == R_RSP)
-        opcode[size++] = SIB(0, R_RSP, R_RSP); // index is not used, base is RSP
+        PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
 
-    *(uint32_t*)(opcode+size) = disp; // displacement
-    size += 4;
+
+    PUT_IMM32(disp); //displacement
 
     bin_emit();
     return size;
@@ -192,16 +205,15 @@ int32_t emitMovqMemBaseDisp32Xmm(emitCtx_t *ctx, REG_t base, int32_t disp, XMM_t
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0x66;
-    opcode[size++] = 0x0F;
-    opcode[size++] = 0xD6;
+    PUT_BYTE(0x66);
+    PUT_BYTE(0x0F);
+    PUT_BYTE(0xD6);
 
-    opcode[size++] = modRM(0b10, src, base);
+    PUT_BYTE(modRM(0b10, src, base));
     if (base == R_RSP)
-        opcode[size++] = SIB(0, R_RSP, R_RSP); // index is not used, base is RSP
+        PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
 
-    *(uint32_t*)(opcode+size) = disp; // displacement
-    size += 4;
+    PUT_IMM32(disp); // displacement
 
     bin_emit();
     return size;
@@ -215,11 +227,11 @@ int32_t emitMovqXmmReg64(emitCtx_t *ctx, XMM_t dest, REG_t src) {
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0x66;
-    opcode[size++] = REX_W;
-    opcode[size++] = 0x0F;
-    opcode[size++] = 0x6e;
-    opcode[size++] = modRM(0b11, dest, src);
+    PUT_BYTE(0x66);
+    PUT_BYTE(REX_W);
+    PUT_BYTE(0x0F);
+    PUT_BYTE(0x6e);
+    PUT_BYTE(modRM(0b11, dest, src));
 
     bin_emit();
     return size;
@@ -236,11 +248,10 @@ int32_t emitAddReg64Imm32(emitCtx_t *ctx, REG_t dest, uint32_t imm) {
 
     bool highReg = (dest >= R_R8);
     uint8_t rex = REX_W | (REX_B * highReg);
-    opcode[size++] = rex;
-    opcode[size++] = 0x81; // add r64, imm32 opcode
-    opcode[size++] = modRM(MOD_RM_REG, 0, TRUNC(dest)); // add requires /0 in reg
-    *(uint32_t*)(opcode+size) = imm; // immediate
-    size += 4;
+    PUT_BYTE(rex);
+    PUT_BYTE(0x81); // add r64, imm32 opcode
+    PUT_BYTE(modRM(MOD_RM_REG, 0, TRUNC(dest))); // add requires /0 in reg
+    PUT_IMM32(imm); // immediate
 
     bin_emit();
     return size;
@@ -257,11 +268,10 @@ int32_t emitSubReg64Imm32(emitCtx_t *ctx, REG_t dest, uint32_t imm) {
 
     bool highReg = (dest >= R_R8);
     uint8_t rex = REX_W | (REX_B * highReg);
-    opcode[size++] = rex;
-    opcode[size++] = 0x81; // sub r64, imm32 opcode
-    opcode[size++] = modRM(MOD_RM_REG, 5, TRUNC(dest)); // sub requires /5 in reg
-    *(uint32_t*)(opcode+size) = imm; // immediate
-    size += 4;
+    PUT_BYTE(rex);
+    PUT_BYTE(0x81); // sub r64, imm32 opcode
+    PUT_BYTE(modRM(MOD_RM_REG, 5, TRUNC(dest))); // sub requires /5 in reg
+    PUT_IMM32(imm); // immediate
 
     bin_emit();
     return size;
@@ -278,13 +288,13 @@ int32_t emitAddsdXmmMemBase(emitCtx_t *ctx, XMM_t dest, REG_t base) {
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0xF2;
-    opcode[size++] = 0x0F;
-    opcode[size++] = 0x58;
+    PUT_BYTE(0xF2);
+    PUT_BYTE(0x0F);
+    PUT_BYTE(0x58);
 
-    opcode[size++] = modRM(00, dest, base);
+    PUT_BYTE(modRM(00, dest, base));
     if (base == R_RSP)
-        opcode[size++] = SIB(0, R_RSP, R_RSP); // index is not used, base is RSP
+        PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
 
     bin_emit();
     return size;
@@ -301,13 +311,13 @@ int32_t emitSubsdXmmMemBase(emitCtx_t *ctx, XMM_t dest, REG_t base) {
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0xF2;
-    opcode[size++] = 0x0F;
-    opcode[size++] = 0x5C;
+    PUT_BYTE(0xF2);
+    PUT_BYTE(0x0F);
+    PUT_BYTE(0x5C);
 
-    opcode[size++] = modRM(00, dest, base);
+    PUT_BYTE(modRM(00, dest, base));
     if (base == R_RSP)
-        opcode[size++] = SIB(0, R_RSP, R_RSP); // index is not used, base is RSP
+        PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
 
     bin_emit();
     return size;
@@ -324,13 +334,13 @@ int32_t emitMulsdXmmMemBase(emitCtx_t *ctx, XMM_t dest, REG_t base) {
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0xF2;
-    opcode[size++] = 0x0F;
-    opcode[size++] = 0x59;
+    PUT_BYTE(0xF2);
+    PUT_BYTE(0x0F);
+    PUT_BYTE(0x59);
 
-    opcode[size++] = modRM(00, dest, base);
+    PUT_BYTE(modRM(00, dest, base));
     if (base == R_RSP)
-        opcode[size++] = SIB(0, R_RSP, R_RSP); // index is not used, base is RSP
+        PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
 
     bin_emit();
     return size;
@@ -347,13 +357,13 @@ int32_t emitDivsdXmmMemBase(emitCtx_t *ctx, XMM_t dest, REG_t base) {
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0xF2;
-    opcode[size++] = 0x0F;
-    opcode[size++] = 0x5E;
+    PUT_BYTE(0xF2);
+    PUT_BYTE(0x0F);
+    PUT_BYTE(0x5E);
 
-    opcode[size++] = modRM(00, dest, base);
+    PUT_BYTE(modRM(00, dest, base));
     if (base == R_RSP)
-        opcode[size++] = SIB(0, R_RSP, R_RSP); // index is not used, base is RSP
+        PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
 
     bin_emit();
     return size;
@@ -366,11 +376,11 @@ int32_t emitSqrtsdXmm(emitCtx_t *ctx, XMM_t dest) {
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0xF2;
-    opcode[size++] = 0x0F;
-    opcode[size++] = 0x51;
+    PUT_BYTE(0xF2);
+    PUT_BYTE(0x0F);
+    PUT_BYTE(0x51);
 
-    opcode[size++] = modRM(0b11, dest, dest);
+    PUT_BYTE(modRM(0b11, dest, dest));
 
     bin_emit();
     return size;
@@ -383,11 +393,12 @@ int32_t emitAndpd(emitCtx_t *ctx, XMM_t dest, XMM_t src) {
 
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
-    opcode[size++] = 0x66;
-    opcode[size++] = 0x0F;
-    opcode[size++] = 0x54;
 
-    opcode[size++] = modRM(0b11, dest, src);
+    PUT_BYTE(0x66);
+    PUT_BYTE(0x0F);
+    PUT_BYTE(0x54);
+
+    PUT_BYTE(modRM(0b11, dest, src));
 
     bin_emit();
     return size;
@@ -410,13 +421,13 @@ int32_t emitCmpsdXmmMemBase(emitCtx_t *ctx, XMM_t arg1, REG_t base, enum IRCmpTy
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0xF2;
-    opcode[size++] = 0x0F;
-    opcode[size++] = 0xC2;
+    PUT_BYTE(0xF2);
+    PUT_BYTE(0x0F);
+    PUT_BYTE(0xC2);
 
-    opcode[size++] = modRM(00, arg1, base);
+    PUT_BYTE(modRM(00, arg1, base));
     if (base == R_RSP)
-        opcode[size++] = SIB(0, R_RSP, R_RSP); // index is not used, base is RSP
+        PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
 
     uint8_t imm = 0;
     switch(cmpType) {
@@ -428,7 +439,7 @@ int32_t emitCmpsdXmmMemBase(emitCtx_t *ctx, XMM_t arg1, REG_t base, enum IRCmpTy
         case CMP_NEQ: imm = 4; break;
         default: assert(0);
     }
-    opcode[size++] = imm;
+    PUT_BYTE(imm);
 
     asm_emit("\tcmpsd %s, [%s], %u\n", XMM_STRINGS[arg1].str, REG_STRINGS[base].str, imm);
 
@@ -443,7 +454,8 @@ int32_t emitRet(emitCtx_t *ctx) {
     asm_emit("\tret\n");
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
-    opcode[size++] = 0xC3;
+
+    PUT_BYTE(0xC3);
 
     bin_emit();
     return 1;
@@ -454,8 +466,8 @@ int32_t emitSyscall(emitCtx_t *ctx) {
     asm_emit("\tsyscall\n");
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
-    opcode[size++] = 0x0F;
-    opcode[size++] = 0x05;
+    PUT_BYTE(0x0F);
+    PUT_BYTE(0x05);
 
     bin_emit();
     return size;
@@ -472,9 +484,9 @@ int32_t emitTest(emitCtx_t *ctx, REG_t dest, REG_t src) {
     int32_t size = 0;
 
     uint8_t rex = REX_W | (REX_R * (src >= R_R8)) | (REX_B * (dest >= R_R8));
-    opcode[size++] = rex;
-    opcode[size++] = 0x85; // test r/m64, r64 opcode
-    opcode[size++] = modRM(MOD_RM_REG, TRUNC(src), TRUNC(dest));
+    PUT_BYTE(rex);
+    PUT_BYTE(0x85); // test r/m64, r64 opcode
+    PUT_BYTE(modRM(MOD_RM_REG, TRUNC(src), TRUNC(dest)));
 
     bin_emit();
     return size;
@@ -492,9 +504,8 @@ int32_t emitJmp(emitCtx_t *ctx, int32_t offset) {
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0xE9; // jmp rel32 opcode
-    *(uint32_t*)(opcode+size) = (uint32_t) offset; // immediate
-    size += 4;
+    PUT_BYTE(0xE9); // jmp rel32 opcode
+    PUT_IMM32(offset); // immediate
 
     bin_emit();
     return size;
@@ -510,10 +521,9 @@ int32_t emitJz(emitCtx_t *ctx, int32_t offset) {
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0x0F; //jz rel32 opcode
-    opcode[size++] = 0x84;
-    *(uint32_t*)(opcode+size) = (uint32_t) offset; // offset
-    size += 4;
+    PUT_BYTE(0x0F); //jz rel32 opcode
+    PUT_BYTE(0x84);
+    PUT_IMM32(offset); // offset
 
     bin_emit();
     return size;
@@ -529,9 +539,8 @@ int32_t emitCall(emitCtx_t *ctx, int32_t offset) {
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
 
-    opcode[size++] = 0xE8; // jmp rel32 opcode
-    *(uint32_t*)(opcode+size) = (uint32_t) offset; // immediate
-    size += 4;
+    PUT_BYTE(0xE8); // jmp rel32 opcode
+    PUT_IMM32(offset); // immediate
 
     bin_emit();
     return size;

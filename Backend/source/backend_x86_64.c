@@ -14,12 +14,21 @@
 #include "backend.h"
 #include "emitters_x86_64.h"
 
-#define asm_emit(...) fprintf(backend->emitter.asmFirstPass, __VA_ARGS__);
+#define asm_emit(...) \
+    do {                                                                \
+        if (!backend->emitter.emitting)                                 \
+            fprintf(backend->emitter.asmFirstPass, __VA_ARGS__);        \
+    } while(0)
+
 #define TODO(msg) do {fprintf(stderr, "TODO: %s at %s:%d\n", msg, __FILE__, __LINE__); abort(); } while(0);
 
 #define EMIT(emitterFunc, ...) \
-    blockSize += emitterFunc(&backend->emitter,##__VA_ARGS__);
-
+    do {\
+        if (backend->emitter.emitting) {\
+            fprintf(backend->emitter.asmFile, "; %lX\n", curNode->startOffset + blockSize);\
+        }\
+        blockSize += emitterFunc(&backend->emitter,##__VA_ARGS__);\
+    } while(0);
 
 static const char * const IRcmpAsmStr[] = {
     "cmpltsd  xmm0, [rsp]", //CMP_LT,
@@ -30,8 +39,20 @@ static const char * const IRcmpAsmStr[] = {
     "cmpneqsd xmm0, [rsp]"  //CMP_NEQ
 };
 
-static BackendStatus_t includeStdlib(Backend_t *backend, FILE *out);
-static BackendStatus_t emitStart(Backend_t *backend, FILE *out);
+static BackendStatus_t translateIRarray(Backend_t *backend);
+
+
+static int32_t emitStart(Backend_t *backend, IRNode_t *curNode);
+static int32_t translatePush(Backend_t *backend, IRNode_t *curNode);
+static int32_t translatePop(Backend_t *backend, IRNode_t *curNode);
+static int32_t translateBinaryMath(Backend_t *backend, IRNode_t *curNode);
+
+static BackendStatus_t emitCtxCtor(Backend_t *backend);
+static BackendStatus_t emitCtxDtor(Backend_t *backend);
+
+static BackendStatus_t includeStdlib(Backend_t *backend);
+
+
 
 static BackendStatus_t includeStdlib(Backend_t *backend) {
     assert(backend);
@@ -71,33 +92,6 @@ static BackendStatus_t includeStdlib(Backend_t *backend) {
     return BACKEND_SUCCESS;
 }
 
-static int32_t emitStart(Backend_t *backend) {
-    assert(backend);
-    int32_t blockSize = 0;
-    //TODO: change it
-    asm_emit("global _start\n");
-    asm_emit("_start:\n");
-
-    asm_emit("; Saving frame pointer for global variables\n");
-    asm_emit("\tmov  rbx, rsp\n");
-    EMIT(emitMovRegReg64, R_RBX, R_RSP);
-
-    asm_emit("; Initializing xmm7 with 1.0\n");
-    asm_emit("\tmov  rcx, 0x3FF0000000000000\n");
-    EMIT(emitMovRegImm64, R_RCX, 0x3FF0000000000000);
-
-    asm_emit("\tmovq xmm7, rcx\n");
-    EMIT(emitMovqXmmReg64, R_XMM7, R_RCX);
-
-    return blockSize;
-}
-
-static BackendStatus_t translateIRarray(Backend_t *backend);
-
-static int32_t translateBinaryMath(Backend_t *backend, IRNode_t *curNode);
-
-static BackendStatus_t emitCtxCtor(Backend_t *backend);
-static BackendStatus_t emitCtxDtor(Backend_t *backend);
 
 static BackendStatus_t emitCtxCtor(Backend_t *backend) {
     FILE *asmFirstPass = fopen(backend->outputFileName, "w");
@@ -124,8 +118,7 @@ static BackendStatus_t emitCtxCtor(Backend_t *backend) {
     backend->emitter.asmFirstPass = asmFirstPass;
     backend->emitter.asmFile = asmFile;
     backend->emitter.binFile = binFile;
-    //!!! It should be false
-    backend->emitter.emitting = true;
+    backend->emitter.emitting = false;
 
     return BACKEND_SUCCESS;
 }
@@ -145,10 +138,18 @@ BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
 
     RET_ON_ERROR(emitCtxCtor(backend));
 
+    /// Including stdlib
+    /// At the moment only to first pass asm file
     includeStdlib(backend);
 
-    emitStart(backend);
+    // First pass
+    // 1. Translating to asm with commentaries and labels
+    // 2. Calculating addresses relative to _start and saving them in blocks
+    translateIRarray(backend);
 
+    // Second pass
+    // Emitting IR to binary file and to asm file for debugging purposes
+    backend->emitter.emitting = true;
     translateIRarray(backend);
 
     emitCtxDtor(backend);
@@ -156,8 +157,36 @@ BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
     return BACKEND_SUCCESS;
 }
 
-static int32_t translatePush(Backend_t *backend, IRNode_t *curNode);
-static int32_t translatePop(Backend_t *backend, IRNode_t *curNode);
+/// @brief Calculate jmp address
+/// assumes that jmp instruction is last in the block
+static int64_t getJmpAddress(Backend_t *backend, IRNode_t *node) {
+    assert(node->type == IR_JMP || node->type == IR_JZ);
+
+
+    // Index of destination node is stored in node
+    int64_t destIdx = node->addr.offset;
+    int64_t destAddr = backend->IR.nodes[destIdx].startOffset;
+
+    // jmpAddr may be negative
+    int64_t jmpAddr = destAddr - (node->startOffset + node->blockSize);
+
+    return jmpAddr;
+
+}
+
+//! Assumes that call instruction is first in node
+//! Also supports only call rel32
+static int64_t getCallAddress(Backend_t *backend, IRNode_t *node) {
+    assert(node->type == IR_CALL);
+
+    int64_t funcId   = node->addr.offset;
+    int64_t destAddr = backend->nameTable.identifiers[funcId].address;
+    // Index of function in nameTable is stored in node
+    int64_t jmpAddr  = destAddr - (node->startOffset + EMIT_CALL_INSTR_SIZE);
+
+    return jmpAddr;
+}
+
 
 static BackendStatus_t translateIRarray(Backend_t *backend) {
     assert(backend);
@@ -176,6 +205,7 @@ static BackendStatus_t translateIRarray(Backend_t *backend) {
         if (printComment)
             asm_emit("; %s\n", curNode->comment);
 
+        curNode->startOffset = startOffset;
         int32_t blockSize = 0;
 
         switch(curNode->type) {
@@ -184,6 +214,9 @@ static BackendStatus_t translateIRarray(Backend_t *backend) {
 
             case IR_LABEL:
                 asm_emit("%s:\n", curNode->comment);
+                if (!curNode->local) {
+                    backend->nameTable.identifiers[curNode->addr.offset].address = startOffset;
+                }
                 break;
 
             case IR_ADD: case IR_SUB: case IR_MUL: case IR_DIV:
@@ -227,8 +260,7 @@ static BackendStatus_t translateIRarray(Backend_t *backend) {
 
             case IR_JMP:
                 asm_emit("\tjmp  %s\n", irNodes[curNode->addr.offset].comment);
-                //TODO: this is not correct address
-                EMIT(emitJmp, curNode->addr.offset);
+                EMIT(emitJmp, getJmpAddress(backend,curNode));
                 break;
 
             case IR_JZ:
@@ -237,15 +269,14 @@ static BackendStatus_t translateIRarray(Backend_t *backend) {
                 asm_emit("\ttest rdi, rdi\n");
                 EMIT(emitTest, R_RDI, R_RDI);
                 asm_emit("\tjz   %s\n", irNodes[curNode->addr.offset].comment);
-                //TODO: this is not correct address
-                EMIT(emitJz, curNode->addr.offset);
+                EMIT(emitJz, getJmpAddress(backend,curNode));
                 break;
 
             case IR_CALL: {
                 Identifier_t funcId = nameTable->identifiers[curNode->addr.offset];
                 asm_emit("\tcall %s\n", funcId.str);
-                //TODO: this is not correct address
-                EMIT(emitCall, curNode->addr.offset);
+                EMIT(emitCall, getCallAddress(backend, curNode));
+
                 if (funcId.argsCount > 0) {
                     asm_emit("\tadd  rsp, %zu\n", funcId.argsCount * 8); // fixing stack
                     EMIT(emitAddReg64Imm32, R_RSP, funcId.argsCount * 8);
@@ -256,7 +287,7 @@ static BackendStatus_t translateIRarray(Backend_t *backend) {
 
             case IR_SET_FRAME_PTR:
                 asm_emit("\tpush rbp\n");
-                EMIT(emitPopReg64, R_RBP);
+                EMIT(emitPushReg64, R_RBP);
                 asm_emit("\tmov  rbp, rsp\n"); // first argument
                 EMIT(emitMovRegReg64, R_RBP, R_RSP);
                 break;
@@ -275,6 +306,10 @@ static BackendStatus_t translateIRarray(Backend_t *backend) {
                 EMIT(emitRet);
                 break;
 
+            case IR_START:
+                blockSize += emitStart(backend, curNode);
+                break;
+
             case IR_EXIT:
                 asm_emit("\tmov  rax, 0x3c\n");
                 EMIT(emitMovRegImm64, R_RAX, 0x3c);
@@ -290,11 +325,31 @@ static BackendStatus_t translateIRarray(Backend_t *backend) {
         }
 
         curNode->blockSize = blockSize;
-        curNode->startOffset = startOffset;
         startOffset += blockSize;
     }
 
     return BACKEND_SUCCESS;
+}
+
+static int32_t emitStart(Backend_t *backend, IRNode_t *curNode) {
+    assert(backend);
+    int32_t blockSize = 0;
+    //TODO: change it
+    asm_emit("global _start\n");
+    asm_emit("_start:\n");
+
+    asm_emit("; Saving frame pointer for global variables\n");
+    asm_emit("\tmov  rbx, rsp\n");
+    EMIT(emitMovRegReg64, R_RBX, R_RSP);
+
+    asm_emit("; Initializing xmm7 with 1.0\n");
+    asm_emit("\tmov  rcx, 0x3FF0000000000000\n");
+    EMIT(emitMovRegImm64, R_RCX, 0x3FF0000000000000);
+
+    asm_emit("\tmovq xmm7, rcx\n");
+    EMIT(emitMovqXmmReg64, R_XMM7, R_RCX);
+
+    return blockSize;
 }
 
 static int32_t translateBinaryMath(Backend_t *backend, IRNode_t *curNode) {

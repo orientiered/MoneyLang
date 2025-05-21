@@ -12,6 +12,8 @@ Transaction -> Main ->
     Invest z %
 
     Solve(x, y, z) %
+
+    Pay 0$ %
 >
 
 Transaction a, b, c -> Solve ->
