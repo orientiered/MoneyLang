@@ -16,7 +16,7 @@
 
 #define asm_emit(...) \
     do {                                                                \
-        if (!backend->emitter.emitting)                                 \
+        if (backend->mode.createAsm && !backend->emitter.emitting)\
             fprintf(backend->emitter.asmFirstPass, __VA_ARGS__);        \
     } while(0)
 
@@ -24,7 +24,7 @@
 
 #define EMIT(emitterFunc, ...) \
     do {\
-        if (backend->emitter.emitting) {\
+        if (backend->mode.lst && backend->emitter.emitting) {\
             fprintf(backend->emitter.asmFile, "; %lX\n", (uint64_t) (curNode->startOffset + blockSize));\
         }\
         blockSize += emitterFunc(&backend->emitter,##__VA_ARGS__);\
@@ -92,6 +92,9 @@ static void writeBinBuffer(emitCtx_t *ctx, const void *src, const size_t size) {
 static BackendStatus_t includeAsmStdlib(Backend_t *backend) {
     assert(backend);
 
+    if (!backend->mode.createAsm)
+        return BACKEND_SUCCESS;
+
     logPrint(L_ZERO, 0, "Including stdlib\n");
 
     // Opening stdlib file
@@ -138,43 +141,62 @@ static int32_t includeBinStdlib(emitCtx_t *emitter, int64_t *stdlib_inAddr, int6
 }
 
 
-const char * const emitAsmName = "__emitdbg.asm";
-const char * const binFileName = "__result.elf";
+static const char *concat(const char *str1, const char *str2) {
+    static char buffer[BACKEND_MAX_FILENAME_LEN];
+    size_t len1 = strlen(str1), len2 = strlen(str2);
+    assert(len1 + len2 < BACKEND_MAX_FILENAME_LEN);
+    memcpy(buffer, str1, len1);
+    strcpy(buffer + len1, str2);
+
+    return buffer;
+}
+
 
 static BackendStatus_t emitCtxCtor(Backend_t *backend) {
-    FILE *asmFirstPass = fopen(backend->outputFileName, "w");
-    if (!asmFirstPass) {
-        logPrint(L_ZERO, 1, "Failed to open '%s' for writing\n", backend->outputFileName);
+    backend->emitter = {
+        .binFile      = NULL,
+        .binBuffer    = NULL,
+        .bufferSize   = 0,
+        .asmFile      = NULL,
+        .asmFirstPass = NULL,
+        .emitting     = false,
+        .lstEmit      = false,
+    };
+
+    const char *outName = backend->outputFileName;
+
+    if (backend->mode.createAsm) {
+        const char *asmName = concat(outName, ASM_NAME_SUFFIX);
+        FILE *asmFirstPass = fopen(asmName, "w");
+        if (!asmFirstPass) {
+            logPrint(L_ZERO, 1, "Failed to open '%s' for writing\n", asmName);
+            return BACKEND_FILE_ERROR;
+        }
+        backend->emitter.asmFirstPass = asmFirstPass;
+    }
+
+    if (backend->mode.lst) {
+        const char *lstName = concat(outName, LST_NAME_SUFFIX);
+        FILE *asmFile = fopen(lstName, "w");
+        if (!asmFile) {
+            logPrint(L_ZERO, 1, "Failed to open '%s' for writing\n", lstName);
+            return BACKEND_FILE_ERROR;
+        }
+        backend->emitter.asmFile = asmFile;
+    }
+
+    const char *binName = concat(outName, BIN_NAME_SUFFIX);
+    backend->emitter.binFile = fopen(binName, "wb");
+    if (!backend->emitter.binFile) {
+        logPrint(L_ZERO, 1, "Failed to open '%s' for writing\n", binName);
         return BACKEND_FILE_ERROR;
     }
 
-    FILE *asmFile = fopen(emitAsmName, "w");
-    FILE *binFile = fopen(binFileName, "wb");
-
-    if (!asmFile) {
-        logPrint(L_ZERO, 1, "Failed to open '%s' for writing\n", emitAsmName);
-        return BACKEND_FILE_ERROR;
-    }
-
-    if (!binFile) {
-        logPrint(L_ZERO, 1, "Failed to open '%s' for writing\n", binFileName);
-        return BACKEND_FILE_ERROR;
-    }
-
-    uint8_t *binBuffer = CALLOC(MAX_EXECUTABLE_SIZE, uint8_t);
-    if (!binBuffer) {
+    backend->emitter.binBuffer = CALLOC(MAX_EXECUTABLE_SIZE, uint8_t);
+    if (!backend->emitter.binBuffer) {
         logPrint(L_ZERO, 1, "Failed to allocate memory for buffer\n");
         return BACKEND_MEMORY_ERROR;
     }
-
-    backend->emitter = {
-        .binFile = binFile,
-        .binBuffer = binBuffer,
-        .bufferSize = 0,
-        .asmFile = asmFile,
-        .asmFirstPass = asmFirstPass,
-        .emitting = false
-    };
 
     return BACKEND_SUCCESS;
 }
@@ -183,12 +205,15 @@ static BackendStatus_t emitCtxDtor(Backend_t *backend) {
     // writing buffer to binary file and closing it
     fwrite(backend->emitter.binBuffer, 1, backend->emitter.bufferSize, backend->emitter.binFile);
     fclose(backend->emitter.binFile);
-    chmod(binFileName, 0755);
+    // setting permissions for file
+    chmod(concat(backend->outputFileName, BIN_NAME_SUFFIX), 0755);
 
     free(backend->emitter.binBuffer); backend->emitter.bufferSize = 0;
 
-    fclose(backend->emitter.asmFirstPass);
-    fclose(backend->emitter.asmFile);
+    if (backend->mode.createAsm)
+        fclose(backend->emitter.asmFirstPass);
+    if (backend->mode.lst)
+        fclose(backend->emitter.asmFile);
 
     return BACKEND_SUCCESS;
 }

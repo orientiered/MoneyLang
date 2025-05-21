@@ -49,7 +49,7 @@ LANG_GLOB_SRCS  := $(addprefix ../LangGlobals/source/, nameTable.c tree.c)
 LANG_GLOB_OBJS  := $(subst source,$(OBJDIR), $(LANG_GLOB_SRCS:%.c=%.o))
 LANG_GLOB_DEPS  := $(LANG_GLOB_OBJS:%.o=%.d)
 
-LOCAL_SRCS      := $(addprefix source/, main.c backendInterface.c IRConverter.c backend_x86_64.c emitters_x86_64.c elfWriter.c)
+LOCAL_SRCS      := $(addprefix source/, main.c backendInterface.c IRConverter.c backend_x86_64.c emitters_x86_64.c elfWriter.c localsStack.c backend_Spu.c)
 LOCAL_OBJS      := $(subst source,$(OBJDIR), $(LOCAL_SRCS:%.c=%.o))
 LOCAL_DEPS      := $(LOCAL_OBJS:%.o=%.d)
 
@@ -59,6 +59,7 @@ override CFLAGS += $(addprefix -I,$(INCLUDEDIRS))
 #Filtering other mains from objects
 $(NAME): $(GLOBAL_OBJS) $(LANG_GLOB_OBJS) $(LOCAL_OBJS)
 	$(CC) $(CFLAGS) $^ $(addprefix -l,$(LINK_LIBS)) -o $@
+	make stdlib
 
 #Easy rebuild in release mode
 RELEASE:
@@ -108,7 +109,7 @@ FILE=sub
 asmTest:
 	nasm -felf64 asm_tests/$(FILE).s -l asm_tests/$(FILE).lst -o /dev/null
 
-stdlib:
+stdlib: stdlib/stdlib.s
 	nasm -felf64 stdlib/stdlib.s -o build/stdlib.o
 	ld build/stdlib.o -o stdlib/stdlib.elf
 

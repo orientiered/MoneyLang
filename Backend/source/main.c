@@ -22,15 +22,19 @@ int main(int argc, const char *argv[]) {
     logDisableBuffering();
 
     registerFlag(TYPE_STRING, "-i", "--input",  "Input file");
-    registerFlag(TYPE_STRING, "-o", "--output", "Output file");
+    registerFlag(TYPE_STRING, "-o", "--output", "Output file basename (extension will be added) ");
 
     registerFlag(TYPE_INT,    "-t", "--tokens", "Maximum number of tokens");
-    registerFlag(TYPE_INT,    "-n", "--nameTableSize", "Maximum number of records in nametable");
-    registerFlag(TYPE_INT,    "-l", "--namesLen", "Maximum total length of all names in nametable");
+    registerFlag(TYPE_INT,    "-n", "--name-table-size", "Maximum number of records in nametable");
+    registerFlag(TYPE_INT,    "-l", "--names-len", "Maximum total length of all names in nametable");
 
     registerFlag(TYPE_BLANK,  "- ", "--taxes", "Enables taxing in return operators");
 
-    enableHelpFlag("Money language backend: transform AST files to SPU asm\n");
+    registerFlag(TYPE_BLANK,  " ",   "--spu",   "Compile to SPU asm");
+    registerFlag(TYPE_BLANK,  "-S", "--asm",   "Generate asm file for x86_64 (only without --spu flag)");
+    registerFlag(TYPE_BLANK,  " ",   "--lst", "Generate x86_64 asm listing");
+
+    enableHelpFlag("Money language backend: transform AST files to nasm/x86_64/SPU asm\n");
 
     if (processArgs(argc, argv) != ARGV_SUCCESS) {
         return ARGV_EXIT_CODE;
@@ -58,10 +62,19 @@ int main(int argc, const char *argv[]) {
     size_t namesLen = getFlagValue("-l").int_;
     if (namesLen == 0) namesLen = DEFAULT_NAMES_LEN;
 
-    bool taxes = isFlagSet("--taxes");
+    BackendMode_t mode = {
+        .spu   = isFlagSet("--spu"),
+        .lst   = isFlagSet("--lst"),
+        .createAsm = isFlagSet("--asm"),
+        .taxes = isFlagSet("--taxes")
+    };
 
     Backend_t context = {0};
-    BackendInit(&context, inputFileName, outputFileName, maxTokens, nameTableSize, namesLen, taxes);
+
+    if (BackendInit(&context, inputFileName, outputFileName, maxTokens, nameTableSize, namesLen, mode) != BACKEND_SUCCESS) {
+        BackendDelete(&context);
+        return 1;
+    }
 
     BackendRun(&context);
 

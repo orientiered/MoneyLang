@@ -6,6 +6,15 @@
 
 #include "backendStructs.h"
 
+const double TAX_COEFF = 0.8;
+
+const size_t BACKEND_MAX_FILENAME_LEN   = 64;
+
+const char * const ASM_NAME_SUFFIX      = ".asm";
+const char * const SPU_NAME_SUFFIX      = ".asm2";
+const char * const LST_NAME_SUFFIX      = ".lst";
+const char * const BIN_NAME_SUFFIX      = ".elf";
+
 const char * const STDLIB_IN_FUNC_NAME  = "__stdlib_in";
 const char * const STDLIB_OUT_FUNC_NAME = "__stdlib_out";
 
@@ -47,34 +56,41 @@ void IRDtor(IR_t *ir);
 
 /* ====================================================================== */
 
-BackendStatus_t IRdump(BackendContext_t *backend);
-BackendStatus_t convertASTtoIR(BackendContext_t *backend, Node_t *ast);
-
-BackendStatus_t LocalsStackInit(LocalsStack_t *stk, size_t capacity);
-BackendStatus_t LocalsStackDelete(LocalsStack_t *stk);
-
-
-BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id);
-//searches variable in stack and prints it
-BackendStatus_t LocalsStackSearchPrint(LocalsStack_t *stk, int id, Backend_t *backend, FILE *file);
-BackendStatus_t LocalsStackPopScope(LocalsStack_t *stk);
-BackendStatus_t LocalsStackInitScope(LocalsStack_t *stk, enum ScopeType scope);
-
-const size_t LOCALS_STACK_SIZE = 128;
-const size_t PROCESSOR_RAM_SIZE = 16384;
-
-
-const double TAX_COEFF = 0.8;
-
 /// @brief Initialize frontend context
 BackendStatus_t BackendInit(Backend_t *context, const char *inputFileName, const char *outputFileName,
-                               size_t maxTokens, size_t maxNametableSize, size_t maxTotalNamesLen, int mode);
+                               size_t maxTokens, size_t maxNametableSize, size_t maxTotalNamesLen, BackendMode_t mode);
 /// @brief Delete frontend context
 BackendStatus_t BackendDelete(Backend_t *context);
 
 BackendStatus_t BackendRun(Backend_t *context);
 
+/* ====================== Locals stack =================================== */
+/* Used to handle scopes */
+/* These functions are the same for both backends */
+LocalVar_t *LocalsStackTop(LocalsStack_t *stk);
+
+BackendStatus_t LocalsStackInit(LocalsStack_t *stk, size_t capacity);
+BackendStatus_t LocalsStackDelete(LocalsStack_t *stk);
+
+BackendStatus_t LocalsStackPopScope(LocalsStack_t *stk);
+BackendStatus_t LocalsStackInitScope(LocalsStack_t *stk, enum ScopeType scope);
+
+const size_t LOCALS_STACK_SIZE = 128;
+
+
+/* ==================== Compilation for x86_64 ========================== */
+
+BackendStatus_t IRdump(BackendContext_t *backend);
+BackendStatus_t convertASTtoIR(BackendContext_t *backend, Node_t *ast);
+
 BackendStatus_t translateIRtox86Asm(Backend_t *backend);
+
+
+/* ==================== Compilation for SPU ============================= */
+const size_t PROCESSOR_RAM_SIZE = 16384;
+
+BackendStatus_t convertASTtoSPUAsm(Backend_t *backend);
+
 
 #define RET_ON_ERROR(expr)                                          \
     do {                                                            \

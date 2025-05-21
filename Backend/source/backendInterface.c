@@ -15,7 +15,6 @@ static void backendToLangContext(LangContext_t *lContext, Backend_t *context) {
     lContext->nameTable      = context->nameTable;
     lContext->treeMemory     = context->treeMemory;
     lContext->tree           = context->tree;
-    lContext->mode           = context->mode;
 }
 
 static void langContextToBackend(Backend_t *context, LangContext_t *lContext) {
@@ -25,11 +24,10 @@ static void langContextToBackend(Backend_t *context, LangContext_t *lContext) {
     context->nameTable       = lContext->nameTable;
     context->treeMemory      = lContext->treeMemory;
     context->tree            = lContext->tree;
-    context->mode            = lContext->mode;
 }
 
 BackendStatus_t BackendInit(Backend_t *context, const char *inputFileName, const char *outputFileName,
-                               size_t maxTokens, size_t maxNametableSize, size_t maxTotalNamesLen, int mode) {
+                               size_t maxTokens, size_t maxNametableSize, size_t maxTotalNamesLen, BackendMode_t mode) {
 
     context->inputFileName = inputFileName;
     context->outputFileName = outputFileName;
@@ -38,14 +36,14 @@ BackendStatus_t BackendInit(Backend_t *context, const char *inputFileName, const
     context->treeMemory = createMemoryArena(maxTokens, sizeof(Node_t));
 
     context->text = readFileToStr(inputFileName);
+    if (!context->text)
+        return BACKEND_FILE_ERROR;
 
     LocalsStackInit(&context->stk, LOCALS_STACK_SIZE);
     context->operatorCounter = 1;
     context->ifCounter = 1;
     context->whileCounter = 1;
-
-    if (mode)
-        context->mode = BACKEND_TAXES;
+    context->mode = mode;
 
     logPrint(L_EXTRA, 0, "Initialized backend\n");
     return BACKEND_SUCCESS;
@@ -84,16 +82,27 @@ BackendStatus_t BackendRun(Backend_t *context) {
     langContextToBackend(context, &lContext);
     DUMP_TREE(&lContext, context->tree, 0);
 
+
+    BackendStatus_t status = BACKEND_SUCCESS;
+
+    if (context->mode.spu) {
+        status = convertASTtoSPUAsm(context);
+        if (status != BACKEND_SUCCESS) {
+            logPrint(L_ZERO, 1, "Failed to convert AST to SPU asm\n");
+        }
+        return status;
+    }
+
     initStdlibFunctions(context);
 
     logPrint(L_ZERO, 0, "Converting AST to IR\n");
-    BackendStatus_t status = convertASTtoIR(context, context->tree);
+    status = convertASTtoIR(context, context->tree);
     if (status != BACKEND_SUCCESS) {
         logPrint(L_ZERO, 1, "Failed to convert AST to IR\n");
         return status;
     }
 
-    IRdump(context);
+    // IRdump(context);
 
     status = translateIRtox86Asm(context);
     if (status != BACKEND_SUCCESS) {

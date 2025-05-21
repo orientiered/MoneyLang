@@ -13,7 +13,19 @@ static bool cmpOp(Node_t *node, enum OperatorType op) {
     return node && node->type == OPERATOR && node->value.op == op;
 }
 
-/* ================ IR functions      ================= */
+/* ================ IR functions      ======================== */
+
+/// @brief Print comment to the current node in IR
+static void IRprintf(BackendContext_t *backend, const char *fmt, ...) __attribute__ ( (format (printf, 2, 3)) );
+
+/// @brief Create IR_LABEL node and return its index in IR array
+/// By default label is local
+/// Global labels are used for function declarations
+static uint32_t IRcreateLabel(BackendContext_t *backend, const char *fmt, ...) __attribute__ ( (format (printf, 2, 3)) );
+
+static IRNode_t *IRnodeCtor(BackendContext_t *backend, IRNodeType_t type);
+
+static void IRComment(BackendContext_t *backend, const char *fmt, ...) __attribute__ ( (format (printf, 2, 3)) );
 
 static IRNode_t *IRgetNewNode(BackendContext_t *backend) {
     IR_t *IR = &backend->IR;
@@ -22,7 +34,6 @@ static IRNode_t *IRgetNewNode(BackendContext_t *backend) {
     return &IR->nodes[IR->size++];
 }
 
-static IRNode_t *IRnodeCtor(BackendContext_t *backend, IRNodeType_t type);
 
 static IRNode_t *IRnodeCtor(BackendContext_t *backend, IRNodeType_t type) {
     IRNode_t *node = IRgetNewNode(backend);
@@ -48,6 +59,7 @@ IR_t IRCtor(size_t capacity) {
     return ir;
 }
 
+
 void IRDtor(IR_t *ir) {
     free(ir->nodes); ir->nodes = NULL;
     free(ir->comments); ir->comments = NULL;
@@ -56,10 +68,8 @@ void IRDtor(IR_t *ir) {
     ir->capacity = 0;
 }
 
-/// @brief Print comment to the current node in IR
-void IRprintf(BackendContext_t *backend, const char *fmt, ...) __attribute__ ( (format (printf, 2, 3)) );
 
-void IRprintf(BackendContext_t *backend, const char *fmt, ...) {
+static void IRprintf(BackendContext_t *backend, const char *fmt, ...) {
     IR_t *ir = &backend->IR;
 
     va_list args;
@@ -71,15 +81,7 @@ void IRprintf(BackendContext_t *backend, const char *fmt, ...) {
     va_end(args);
 }
 
-static uint32_t IRgetNodeIdx(BackendContext_t *backend, const IRNode_t *irNode) {
-    return (uint32_t) (irNode - backend->IR.nodes) / sizeof(irNode);
-}
 
-/// @brief Create IR_LABEL node and return its index in IR array
-/// By default label is local
-/// Global labels are used for function declarations
-
-static uint32_t IRcreateLabel(BackendContext_t *backend, const char *fmt, ...) __attribute__ ( (format (printf, 2, 3)) );
 
 static uint32_t IRcreateLabel(BackendContext_t *backend, const char *fmt, ...) {
     IR_t *ir = &backend->IR;
@@ -101,9 +103,8 @@ static uint32_t IRcreateLabel(BackendContext_t *backend, const char *fmt, ...) {
     return idx;
 }
 
-void IRComment(BackendContext_t *backend, const char *fmt, ...) __attribute__ ( (format (printf, 2, 3)) );
 
-void IRComment(BackendContext_t *backend, const char *fmt, ...) {
+static void IRComment(BackendContext_t *backend, const char *fmt, ...) {
     IR_t *ir = &backend->IR;
 
     va_list args;
@@ -124,23 +125,13 @@ void IRComment(BackendContext_t *backend, const char *fmt, ...) {
 
 /*========================Stack with local and global variables============================*/
 
-static LocalVar_t *LocalsStackTop(LocalsStack_t *stk) {
-    return (stk->size > 0) ? stk->vars + stk->size - 1 : NULL;
-}
+static BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id);
+static BackendStatus_t LocalsStackPushFuncArg(LocalsStack_t *stk, int id, int argNumber);
 
-BackendStatus_t LocalsStackInit(LocalsStack_t *stk, size_t capacity) {
-    stk->capacity = capacity;
-    stk->vars = CALLOC(capacity, LocalVar_t);
-    stk->size = 0;
-    return BACKEND_SUCCESS;
-}
+//searches variable in stack and prints it
+static BackendStatus_t LocalsStackSearchAddr(int id, Backend_t *backend, IRNode_t *irNode);
 
-BackendStatus_t LocalsStackDelete(LocalsStack_t *stk) {
-    free(stk->vars);
-    return BACKEND_SUCCESS;
-}
-
-BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id) {
+static BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id) {
     // addresses are relative to rbp (or rbx for global variables) without *8
     //  3 | arg 2
     //  2 | arg 1
@@ -178,8 +169,6 @@ static BackendStatus_t LocalsStackPushFuncArg(LocalsStack_t *stk, int id, int ar
     return BACKEND_SUCCESS;
 }
 
-//searches variable in stack and prints it
-static BackendStatus_t LocalsStackSearchAddr(int id, Backend_t *backend, IRNode_t *irNode);
 
 static BackendStatus_t LocalsStackSearchAddr(int id, Backend_t *backend, IRNode_t *irNode) {
     assert(backend);
@@ -219,30 +208,6 @@ static BackendStatus_t LocalsStackSearchAddr(int id, Backend_t *backend, IRNode_
     SyntaxError(backend, BACKEND_SCOPE_ERROR, "Variable %s wasn't declared at this scope\n", tableId.str);
 }
 
-BackendStatus_t LocalsStackPopScope(LocalsStack_t *stk) {
-    logPrint(L_EXTRA, 0, "Popping scope\n");
-
-    while (stk->size && LocalsStackTop(stk)->id >= 0)
-        stk->size--;
-
-    //stopped on scope separator
-    if (stk->size) stk->size--;
-
-    return BACKEND_SUCCESS;
-}
-
-BackendStatus_t LocalsStackInitScope(LocalsStack_t *stk, enum ScopeType scope) {
-    logPrint(L_EXTRA, 0, "Creating new scope %d\n", scope);
-    stk->vars[stk->size].id = scope;
-    //if it is normal scope and we have elements before, address numeration continues
-    if (scope == NORMAL_SCOPE && stk->size > 0) {
-        stk->vars[stk->size].address = stk->vars[stk->size-1].address;
-    }
-
-    stk->size++;
-
-    return BACKEND_SUCCESS;
-}
 /* ======================================= AST to IR converter ======================================= */
 static BackendStatus_t convertASTtoIRrecursive(BackendContext_t *backend, Node_t *node);
 
@@ -702,7 +667,7 @@ static BackendStatus_t convertRet(BackendContext_t *backend, Node_t *node) {
 
     RET_ON_ERROR(convertASTtoIRrecursive(backend, node->left));
 
-    if (backend->mode == BACKEND_TAXES)
+    if (backend->mode.taxes)
         TODO("Imlpement taxes in function return");
 
     IRnodeCtor(backend, IR_RET);

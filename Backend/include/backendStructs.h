@@ -33,11 +33,6 @@ typedef enum BackendStatus_t {
     BACKEND_ERROR
 } BackendStatus_t;
 
-typedef enum BackendMode_t {
-    BACKEND_SIMPLE = 0,
-    BACKEND_TAXES = 1
-} BackendMode_t;
-
 /* ============= Intermediate representation ======================== */
 // IR for stack-based operations
 
@@ -167,11 +162,22 @@ typedef struct {
 
     FILE *asmFirstPass;
     bool emitting;
+    bool lstEmit;
 } emitCtx_t;
 
 const size_t MAX_EXECUTABLE_SIZE = 1024*1024; // 1Mb
 
 /* =================== Backend context ============================ */
+
+typedef struct {
+    bool spu;       ///> Compile for SPU
+    bool lst;    ///> Generate asm listing
+
+    bool createAsm; ///> Generate asm file with names and stdlib
+
+    bool taxes;     ///> Taxes for return
+} BackendMode_t;
+
 typedef struct BackendContext_t {
     const char *inputFileName;
     const char *outputFileName;
@@ -184,7 +190,7 @@ typedef struct BackendContext_t {
     IR_t IR;
     emitCtx_t emitter;
 
-    int mode;
+    BackendMode_t mode;
 
     LocalsStack_t stk;
     bool inFunction;

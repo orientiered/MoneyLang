@@ -11,7 +11,7 @@
 /* Useful defines */
 #define TODO(msg) do {fprintf(stderr, "TODO: %s at %s:%d\n", msg, __FILE__, __LINE__); abort(); } while(0);
 
-#define asm_emit(...) if (ctx->emitting) fprintf(ctx->asmFile, __VA_ARGS__)
+#define asm_emit(...) if (ctx->lstEmit && ctx->emitting) fprintf(ctx->asmFile, __VA_ARGS__)
 #define bin_emit() \
     do {\
         if (ctx->emitting) {\

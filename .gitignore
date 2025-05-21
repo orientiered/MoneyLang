@@ -7,10 +7,14 @@ build
 logs
 log.txt
 
+compiled
+Backend/asm_tests
+
 *.mpp
 *.out
 *.ast
 *.asm
+*.asm2
 *.lol
 
 *.exe

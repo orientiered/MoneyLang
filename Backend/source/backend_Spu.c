@@ -14,46 +14,14 @@ static bool cmpOp(Node_t *node, enum OperatorType op) {
     return node && node->type == OPERATOR && node->value.op == op;
 }
 
-static void backendToLangContext(LangContext_t *lContext, Backend_t *context) {
-    lContext->inputFileName  = context->inputFileName;
-    lContext->outputFileName = context->outputFileName;
-    lContext->text           = context->text;
-    lContext->nameTable      = context->nameTable;
-    lContext->treeMemory     = context->treeMemory;
-    lContext->tree           = context->tree;
-    lContext->mode           = context->mode;
-}
-
-static void langContextToBackend(Backend_t *context, LangContext_t *lContext) {
-    context->inputFileName   = lContext->inputFileName;
-    context->outputFileName  = lContext->outputFileName;
-    context->text            = lContext->text;
-    context->nameTable       = lContext->nameTable;
-    context->treeMemory      = lContext->treeMemory;
-    context->tree            = lContext->tree;
-    context->mode            = lContext->mode;
-}
-
 /*========================Stack with local and global variables============================*/
 
-static LocalVar_t *LocalsStackTop(LocalsStack_t *stk) {
-    return (stk->size > 0) ? stk->vars + stk->size - 1 : NULL;
-}
-
-BackendStatus_t LocalsStackInit(LocalsStack_t *stk, size_t capacity) {
-    stk->capacity = capacity;
-    stk->vars = CALLOC(capacity, LocalVar_t);
-    stk->size = 0;
-    return BACKEND_SUCCESS;
-}
+static BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id);
+//searches variable in stack and prints it
+static BackendStatus_t LocalsStackSearchPrint(LocalsStack_t *stk, int id, Backend_t *backend, FILE *file);
 
 
-BackendStatus_t LocalsStackDelete(LocalsStack_t *stk) {
-    free(stk->vars);
-    return BACKEND_SUCCESS;
-}
-
-BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id) {
+static BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id) {
     size_t addr = 0;
     if (stk->size > 0 && LocalsStackTop(stk)->id != FUNC_SCOPE)
         addr = LocalsStackTop(stk)->address + 1;
@@ -67,7 +35,7 @@ BackendStatus_t LocalsStackPush(LocalsStack_t *stk, int id) {
 }
 
 //searches variable in stack and prints it
-BackendStatus_t LocalsStackSearchPrint(LocalsStack_t *stk, int id, Backend_t *backend, FILE *file) {
+static BackendStatus_t LocalsStackSearchPrint(LocalsStack_t *stk, int id, Backend_t *backend, FILE *file) {
     int idx = stk->size - 1;
     bool local = backend->inFunction;
     Identifier_t tableId = getIdFromTable(&backend->nameTable, id);
@@ -97,87 +65,54 @@ BackendStatus_t LocalsStackSearchPrint(LocalsStack_t *stk, int id, Backend_t *ba
     SyntaxError(backend, BACKEND_SCOPE_ERROR, "Variable %s wasn't declared at this scope\n", tableId.str);
 }
 
-BackendStatus_t LocalsStackPopScope(LocalsStack_t *stk) {
-    logPrint(L_EXTRA, 0, "Popping scope\n");
-
-    while (stk->size && LocalsStackTop(stk)->id >= 0)
-        stk->size--;
-
-    //stopped on scope separator
-    if (stk->size) stk->size--;
-
-    return BACKEND_SUCCESS;
-}
-
-BackendStatus_t LocalsStackInitScope(LocalsStack_t *stk, enum ScopeType scope) {
-    logPrint(L_EXTRA, 0, "Creating new scope %d\n", scope);
-    stk->vars[stk->size].id = scope;
-    //if it is normal scope and we have elements before, address numeration continues
-    if (scope == NORMAL_SCOPE && stk->size > 0) {
-        stk->vars[stk->size].address = stk->vars[stk->size-1].address;
-    }
-
-    stk->size++;
-
-    return BACKEND_SUCCESS;
-}
-
 /*==========================Backend===========================================================*/
 
-BackendStatus_t BackendInit(Backend_t *context, const char *inputFileName, const char *outputFileName,
-                               size_t maxTokens, size_t maxNametableSize, size_t maxTotalNamesLen, int mode) {
-
-    context->inputFileName = inputFileName;
-    context->outputFileName = outputFileName;
-
-    NameTableCtor(&context->nameTable, maxTotalNamesLen, maxNametableSize);
-    context->treeMemory = createMemoryArena(maxTokens, sizeof(Node_t));
-
-    context->text = readFileToStr(inputFileName);
-
-    LocalsStackInit(&context->stk, LOCALS_STACK_SIZE);
-    context->operatorCounter = 1;
-    context->ifCounter = 1;
-    context->whileCounter = 1;
-
-    if (mode)
-        context->mode = BACKEND_TAXES;
-
-    logPrint(L_EXTRA, 0, "Initialized backend\n");
-    return BACKEND_SUCCESS;
-}
-
-BackendStatus_t BackendDelete(Backend_t *context) {
-    assert(context);
-
-    free( (void *) context->text);
-    freeMemoryArena(&context->treeMemory);
-
-    NameTableDtor(&context->nameTable);
-    LocalsStackDelete(&context->stk);
-    memset(context, 0, sizeof(*context));
-    logPrint(L_EXTRA, 0, "Deleted backend\n");
-    return BACKEND_SUCCESS;
-}
-
-BackendStatus_t BackendRun(Backend_t *context) {
-    LangContext_t lContext = {0};
-    backendToLangContext(&lContext, context);
-    ASTStatus_t astStatus = readFromAST(&lContext);
-    if (astStatus != AST_SUCCESS)
-        return BACKEND_AST_ERROR;
-
-    langContextToBackend(context, &lContext);
-    DUMP_TREE(&lContext, context->tree, 0);
-
-    BackendStatus_t status = translateToAsm(context);
-    if (status != BACKEND_SUCCESS)
-        return status;
-
-    return BACKEND_SUCCESS;
-}
-
 static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, Node_t *node);
+static BackendStatus_t translateAsmSTD(Backend_t *context, FILE *file);
+
+static BackendStatus_t translateIf(Backend_t *context, FILE *file, Node_t *node);
+static BackendStatus_t translateWhile(Backend_t *context, FILE *file, Node_t *node);
+static BackendStatus_t translateCallArguments(Backend_t *context, FILE *file, Node_t *node);
+static BackendStatus_t translateText(Backend_t *context, FILE *file, Node_t *node);
+static BackendStatus_t translateCall(Backend_t *context, FILE *file, Node_t *node);
+static BackendStatus_t translateFuncDecl(Backend_t *context, FILE *file, Node_t *node);
+
+
+static const char *concat(const char *str1, const char *str2) {
+    static char buffer[BACKEND_MAX_FILENAME_LEN];
+    size_t len1 = strlen(str1), len2 = strlen(str2);
+    assert(len1 + len2 < BACKEND_MAX_FILENAME_LEN);
+    memcpy(buffer, str1, len1);
+    strcpy(buffer + len1, str2);
+
+    return buffer;
+}
+
+BackendStatus_t convertASTtoSPUAsm(Backend_t *context) {
+    assert(context);
+    assert(context->tree);
+    assert(context->outputFileName);
+
+    const char *outName = concat(context->outputFileName, SPU_NAME_SUFFIX);
+
+    FILE *file = fopen(outName, "w");
+    if (!file) {
+        logPrint(L_ZERO, 1, "Can't open file '%s' for writing\n", outName);
+        return BACKEND_FILE_ERROR;
+    }
+
+    fprintf(file, "; Autogenerated\n");
+    fprintf(file, "PUSH 0; zeroing rbx\n");
+    fprintf(file, "POP rbx\n");
+
+    RET_ON_ERROR(translateToAsmRecursive(context, file, context->tree));
+    fprintf(file, "HLT\n\n");
+
+    RET_ON_ERROR(translateAsmSTD(context, file));
+    fclose(file);
+
+    return BACKEND_SUCCESS;
+}
 
 static BackendStatus_t translateIf(Backend_t *context, FILE *file, Node_t *node) {
     assert(cmpOp(node, OP_IF));
@@ -391,7 +326,7 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
             RET_ON_ERROR(translateToAsmRecursive(context, file, node->left));
 
             fprintf(file, "POP rax ; Storing result value\n");
-            if (context->mode == BACKEND_TAXES)
+            if (context->mode.taxes)
                 fprintf(file, "CALL __TAXES ; taking taxes from returning value\n");
             fprintf(file, "RET\n");
             break;
@@ -433,33 +368,8 @@ static BackendStatus_t translateToAsmRecursive(Backend_t *context, FILE *file, N
     return BACKEND_SUCCESS;
 }
 
-BackendStatus_t translateAsmSTD(Backend_t *context, FILE *file);
 
-BackendStatus_t translateToAsm(Backend_t *context) {
-    assert(context);
-    assert(context->tree);
-    assert(context->outputFileName);
-
-    FILE *file = fopen(context->outputFileName, "w");
-    if (!file) {
-        logPrint(L_ZERO, 1, "Can't open file '%s' for writing\n", context->outputFileName);
-        return BACKEND_FILE_ERROR;
-    }
-
-    fprintf(file, "; Autogenerated\n");
-    fprintf(file, "PUSH 0; zeroing rbx\n");
-    fprintf(file, "POP rbx\n");
-
-    RET_ON_ERROR(translateToAsmRecursive(context, file, context->tree));
-    fprintf(file, "HLT\n\n");
-
-    RET_ON_ERROR(translateAsmSTD(context, file));
-    fclose(file);
-
-    return BACKEND_SUCCESS;
-}
-
-BackendStatus_t translateAsmSTD(Backend_t *context, FILE *file) {
+static BackendStatus_t translateAsmSTD(Backend_t *context, FILE *file) {
     const char *ineqCalls[] = {"__LESS", "__GREATER", "__GREATER_EQ", "__LESS_EQ", "__EQUAL", "__NEQUAL"};
     const char *ineqJumps[] = {"JB",     "JA",        "JAE",          "JBE",       "JE",      "JNE"};
     for (unsigned idx = 0; idx < ARRAY_SIZE(ineqCalls); idx++) {
