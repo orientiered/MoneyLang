@@ -23,6 +23,7 @@ typedef enum BackendStatus_t {
     BACKEND_SUCCESS,
     BACKEND_AST_ERROR,
     BACKEND_FILE_ERROR,
+    BACKEND_MEMORY_ERROR,
     BACKEND_WRITE_ERROR,
     BACKEND_TYPE_ERROR,
     BACKEND_SCOPE_ERROR,
@@ -159,11 +160,16 @@ typedef enum REGS REG_t;
 
 typedef struct {
     FILE *binFile;
+    uint8_t *binBuffer;
+    size_t  bufferSize;
+
     FILE *asmFile;
 
     FILE *asmFirstPass;
     bool emitting;
 } emitCtx_t;
+
+const size_t MAX_EXECUTABLE_SIZE = 1024*1024; // 1Mb
 
 /* =================== Backend context ============================ */
 typedef struct BackendContext_t {

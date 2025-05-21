@@ -65,7 +65,7 @@ BackendStatus_t BackendDelete(Backend_t *context) {
     return BACKEND_SUCCESS;
 }
 
-static void loadStdlibFunctions(Backend_t *backend) {
+static void initStdlibFunctions(Backend_t *backend) {
     NameTable_t *nameTable = &backend->nameTable;
     insertIdentifier(nameTable, STDLIB_IN_FUNC_NAME);
 
@@ -84,7 +84,7 @@ BackendStatus_t BackendRun(Backend_t *context) {
     langContextToBackend(context, &lContext);
     DUMP_TREE(&lContext, context->tree, 0);
 
-    loadStdlibFunctions(context);
+    initStdlibFunctions(context);
 
     logPrint(L_ZERO, 0, "Converting AST to IR\n");
     BackendStatus_t status = convertASTtoIR(context, context->tree);

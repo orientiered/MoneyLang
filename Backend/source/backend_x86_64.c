@@ -3,8 +3,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <string.h>
-
-#include <elf.h>
+#include <sys/stat.h>
 
 #include "utils.h"
 #include "logger.h"
@@ -13,6 +12,7 @@
 
 #include "backend.h"
 #include "emitters_x86_64.h"
+#include "elfWriter.h"
 
 #define asm_emit(...) \
     do {                                                                \
@@ -25,7 +25,7 @@
 #define EMIT(emitterFunc, ...) \
     do {\
         if (backend->emitter.emitting) {\
-            fprintf(backend->emitter.asmFile, "; %lX\n", curNode->startOffset + blockSize);\
+            fprintf(backend->emitter.asmFile, "; %lX\n", (uint64_t) (curNode->startOffset + blockSize));\
         }\
         blockSize += emitterFunc(&backend->emitter,##__VA_ARGS__);\
     } while(0);
@@ -39,7 +39,9 @@ static const char * const IRcmpAsmStr[] = {
     "cmpneqsd xmm0, [rsp]"  //CMP_NEQ
 };
 
-static BackendStatus_t translateIRarray(Backend_t *backend);
+/// @brief Translate ir array to asm and return size of code in bytes
+/// Works in 2 modes
+static int64_t translateIRarray(Backend_t *backend);
 
 
 static int32_t emitStart(Backend_t *backend, IRNode_t *curNode);
@@ -93,6 +95,9 @@ static BackendStatus_t includeStdlib(Backend_t *backend) {
 }
 
 
+const char * const emitAsmName = "__emitdbg.asm";
+const char * const binFileName = "__result.elf";
+
 static BackendStatus_t emitCtxCtor(Backend_t *backend) {
     FILE *asmFirstPass = fopen(backend->outputFileName, "w");
     if (!asmFirstPass) {
@@ -100,8 +105,6 @@ static BackendStatus_t emitCtxCtor(Backend_t *backend) {
         return BACKEND_FILE_ERROR;
     }
 
-    const char * const emitAsmName = "__emitdbg.asm";
-    const char * const binFileName = "__result.elf";
     FILE *asmFile = fopen(emitAsmName, "w");
     FILE *binFile = fopen(binFileName, "wb");
 
@@ -115,28 +118,62 @@ static BackendStatus_t emitCtxCtor(Backend_t *backend) {
         return BACKEND_FILE_ERROR;
     }
 
-    backend->emitter.asmFirstPass = asmFirstPass;
-    backend->emitter.asmFile = asmFile;
-    backend->emitter.binFile = binFile;
-    backend->emitter.emitting = false;
+    uint8_t *binBuffer = CALLOC(MAX_EXECUTABLE_SIZE, uint8_t);
+    if (!binBuffer) {
+        logPrint(L_ZERO, 1, "Failed to allocate memory for buffer\n");
+        return BACKEND_MEMORY_ERROR;
+    }
+
+    backend->emitter = {
+        .binFile = binFile,
+        .binBuffer = binBuffer,
+        .bufferSize = 0,
+        .asmFile = asmFile,
+        .asmFirstPass = asmFirstPass,
+        .emitting = false
+    };
 
     return BACKEND_SUCCESS;
 }
 
 static BackendStatus_t emitCtxDtor(Backend_t *backend) {
+    // writing buffer to binary file and closing it
+    fwrite(backend->emitter.binBuffer, 1, backend->emitter.bufferSize, backend->emitter.binFile);
+    fclose(backend->emitter.binFile);
+    chmod(binFileName, 0755);
+
+    free(backend->emitter.binBuffer); backend->emitter.bufferSize = 0;
+
     fclose(backend->emitter.asmFirstPass);
     fclose(backend->emitter.asmFile);
-    fclose(backend->emitter.binFile);
 
     return BACKEND_SUCCESS;
 }
 
+
+static void writeBinBuffer(emitCtx_t *ctx, const void *src, const size_t size) {
+    memcpy(ctx->binBuffer + ctx->bufferSize, src, size);
+    ctx->bufferSize += size;
+}
 
 BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
     assert(backend);
     assert(backend->IR.nodes); assert(backend->IR.size > 0);
 
     RET_ON_ERROR(emitCtxCtor(backend));
+
+    emitCtx_t *emitter = &backend->emitter;
+
+    Elf64_Ehdr elfHdr = generateElfHeader(0x401000, 2);
+
+    size_t segmentElfVaddr = 0x400000,
+           segmentElfSize = sizeof(Elf64_Ehdr) + 2 * sizeof(Elf64_Phdr);
+    Elf64_Phdr phdrElf  =
+        generateElfPheader(PF_R, 0, segmentElfVaddr, segmentElfSize);
+
+    size_t segmentCodeVaddr = 0x401000;
+    Elf64_Phdr phdrCode =
+        generateElfPheader(PF_R | PF_X, 0x1000, segmentCodeVaddr, 0);
 
     /// Including stdlib
     /// At the moment only to first pass asm file
@@ -145,11 +182,18 @@ BackendStatus_t translateIRtox86Asm(Backend_t *backend) {
     // First pass
     // 1. Translating to asm with commentaries and labels
     // 2. Calculating addresses relative to _start and saving them in blocks
-    translateIRarray(backend);
+    int64_t codeSize = translateIRarray(backend);
+    phdrCode.p_filesz = (size_t) codeSize;
+    phdrCode.p_memsz = (size_t) codeSize;
+
+    writeBinBuffer(emitter, &elfHdr, sizeof(elfHdr));
+    writeBinBuffer(emitter, &phdrElf, sizeof(phdrElf));
+    writeBinBuffer(emitter, &phdrCode, sizeof(phdrCode));
+    emitter->bufferSize = 0x1000; // code starts from this address
 
     // Second pass
     // Emitting IR to binary file and to asm file for debugging purposes
-    backend->emitter.emitting = true;
+    emitter->emitting = true;
     translateIRarray(backend);
 
     emitCtxDtor(backend);
@@ -188,7 +232,7 @@ static int64_t getCallAddress(Backend_t *backend, IRNode_t *node) {
 }
 
 
-static BackendStatus_t translateIRarray(Backend_t *backend) {
+static int64_t translateIRarray(Backend_t *backend) {
     assert(backend);
 
     IR_t *IR = &backend->IR;
@@ -328,7 +372,7 @@ static BackendStatus_t translateIRarray(Backend_t *backend) {
         startOffset += blockSize;
     }
 
-    return BACKEND_SUCCESS;
+    return startOffset;
 }
 
 static int32_t emitStart(Backend_t *backend, IRNode_t *curNode) {

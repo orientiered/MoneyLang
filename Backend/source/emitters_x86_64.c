@@ -12,7 +12,13 @@
 #define TODO(msg) do {fprintf(stderr, "TODO: %s at %s:%d\n", msg, __FILE__, __LINE__); abort(); } while(0);
 
 #define asm_emit(...) if (ctx->emitting) fprintf(ctx->asmFile, __VA_ARGS__)
-#define bin_emit() if (ctx->emitting) fwrite(opcode, 1, (size_t)size, ctx->binFile)
+#define bin_emit() \
+    do {\
+        if (ctx->emitting) {\
+            memcpy(ctx->binBuffer + ctx->bufferSize, opcode, size);\
+            ctx->bufferSize += size;\
+        }\
+    } while(0)
 
 #define PUT_BYTE(byte) do {opcode[size++] = byte; } while(0)
 #define PUT_IMM32(imm32) \
@@ -499,7 +505,7 @@ int32_t emitJmp(emitCtx_t *ctx, int32_t offset) {
     assert(ctx);
 
     // TODO: it might be incorrect
-    asm_emit("\tjmp $ + 5 + %X\n", (uint32_t) offset);
+    asm_emit("\tjmp $ + 5 + 0x%X\n", (uint32_t) offset);
 
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
@@ -516,7 +522,7 @@ int32_t emitJz(emitCtx_t *ctx, int32_t offset) {
     assert(ctx);
 
     // TODO: it might be incorrect
-    asm_emit("\tjz $ + 6 + %X\n", (uint32_t) offset);
+    asm_emit("\tjz $ + 6 + 0x%X\n", (uint32_t) offset);
 
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
@@ -534,7 +540,7 @@ int32_t emitCall(emitCtx_t *ctx, int32_t offset) {
     assert(ctx);
 
     // TODO: it might be incorrect
-    asm_emit("\tcall $ + 5 + %X\n", (uint32_t) offset);
+    asm_emit("\tcall $ + 5 + 0x%X\n", (uint32_t) offset);
 
     uint8_t opcode[MAX_OPCODE_LEN] = {};
     int32_t size = 0;
