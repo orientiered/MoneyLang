@@ -14,11 +14,18 @@ Transaction a -> fact ->
     Pay b %
 >
 
-Account test %
-test = 500000₽ %
+Account testCnt %
+Account outerIdx %
+outerIdx = 10₽ %
+
 Account res %
-while test >== 0₽ ->
+while outerIdx >== 0₽ ->
 <
-    res = fact(5₽) %
-    test = test - 1₽ %
+    testCnt = 500000₽ %
+    while testCnt >== 0₽ ->
+    <
+        res = fact(5₽) %
+        testCnt = testCnt - 1₽ %
+    >
+    outerIdx = outerIdx - 1₽ %
 >
