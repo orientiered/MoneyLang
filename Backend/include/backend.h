@@ -43,7 +43,7 @@ static const char * const IRNodeTypeStrings[] = {
     "IR_CALL",
     "IR_RET",
     "IR_SET_FRAME_PTR",
-    // IR_LEAVE,
+    "IR_LEAVE_SCOPE",
     "IR_START",
     "IR_EXIT"
 };
@@ -72,7 +72,7 @@ LocalVar_t *LocalsStackTop(LocalsStack_t *stk);
 BackendStatus_t LocalsStackInit(LocalsStack_t *stk, size_t capacity);
 BackendStatus_t LocalsStackDelete(LocalsStack_t *stk);
 
-BackendStatus_t LocalsStackPopScope(LocalsStack_t *stk);
+BackendStatus_t LocalsStackPopScope(LocalsStack_t *stk, size_t *variables);
 BackendStatus_t LocalsStackInitScope(LocalsStack_t *stk, enum ScopeType scope);
 
 const size_t LOCALS_STACK_SIZE = 128;

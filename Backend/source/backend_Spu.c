@@ -143,7 +143,7 @@ static BackendStatus_t translateIf(Backend_t *context, FILE *file, Node_t *node)
     }
     fprintf(file,   "IF_END%d:\n", currentIf);
 
-    LocalsStackPopScope(&context->stk);
+    LocalsStackPopScope(&context->stk, NULL);
     return BACKEND_SUCCESS;
 }
 
@@ -162,7 +162,7 @@ static BackendStatus_t translateWhile(Backend_t *context, FILE *file, Node_t *no
     fprintf(file,   "\tJMP LOOP%d\n", currentWhile);
     fprintf(file,   "LOOP_END%d:\n", currentWhile);
 
-    LocalsStackPopScope(&context->stk);
+    LocalsStackPopScope(&context->stk, NULL);
     return BACKEND_SUCCESS;
 }
 
@@ -281,7 +281,7 @@ static BackendStatus_t translateFuncDecl(Backend_t *context, FILE *file, Node_t 
     fprintf(file, "#----End of function %s------------#\n", funcName);
 
     context->inFunction = false;
-    LocalsStackPopScope(&context->stk);
+    LocalsStackPopScope(&context->stk, NULL);
     return BACKEND_SUCCESS;
 }
 

@@ -4,6 +4,12 @@ Account y %
 Invest x %
 Invest y %
 
+while x < 1000₽ -> <
+    @ Testing if rsp gets incremented every time
+    Account localInLoop %
+    x = x + 1₽ %
+>
+
 if x === 1₽ -> <
     Account x %
     Invest x %

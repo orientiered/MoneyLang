@@ -505,6 +505,7 @@ static BackendStatus_t convertIfElse(BackendContext_t *backend, Node_t *node) {
 
     bool hasElse = cmpOp(node->right, OP_ELSE);
 
+
     if (!hasElse) {
         // Jump to the end on condition fail
         IRNode_t *endJump = IRnodeCtor(backend, IR_JZ);
@@ -543,7 +544,14 @@ static BackendStatus_t convertIfElse(BackendContext_t *backend, Node_t *node) {
 
     }
 
-    LocalsStackPopScope(&backend->stk);
+    size_t varsInScope = 0;
+    LocalsStackPopScope(&backend->stk, &varsInScope);
+
+    // Removing variables allocated on stack
+    IRprintf(backend, "Deallocating local variables");
+    IRNode_t *leaveScope = IRnodeCtor(backend, IR_LEAVE_SCOPE);
+    leaveScope->addr.offset = varsInScope;
+
     return BACKEND_SUCCESS;
 }
 
@@ -568,6 +576,10 @@ static BackendStatus_t convertWhile(BackendContext_t *backend, Node_t *node) {
     IRprintf(backend, "While %d: statement", currentWhile);
     RET_ON_ERROR(convertASTtoIRrecursive(backend, node->right));
 
+    // Removing variables allocated on stack
+    IRprintf(backend, "Deallocating local variables");
+    IRNode_t *leaveScope = IRnodeCtor(backend, IR_LEAVE_SCOPE);
+
     // Jump to the start
     IRNode_t *jmpStart = IRnodeCtor(backend, IR_JMP);
     jmpStart->addr.offset = loopLabelIdx;
@@ -576,7 +588,10 @@ static BackendStatus_t convertWhile(BackendContext_t *backend, Node_t *node) {
     uint32_t loopEndLabelIdx = IRcreateLabel(backend, "LOOP%d_END", currentWhile);
     endJump->addr.offset = loopEndLabelIdx;
 
-    LocalsStackPopScope(&backend->stk);
+    size_t varsInScope = 0;
+    LocalsStackPopScope(&backend->stk, &varsInScope);
+    leaveScope->addr.offset = varsInScope;
+
     return BACKEND_SUCCESS;
 }
 
@@ -657,7 +672,7 @@ static BackendStatus_t convertFuncDecl(BackendContext_t *backend, Node_t *node) 
 
     backend->inFunction = false;
 
-    LocalsStackPopScope(&backend->stk);
+    LocalsStackPopScope(&backend->stk, NULL);
 
     return BACKEND_SUCCESS;
 }

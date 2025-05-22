@@ -414,6 +414,13 @@ static int64_t translateIRarray(Backend_t *backend) {
                 EMIT(emitMovRegReg64, R_RBP, R_RSP);
                 break;
 
+            case IR_LEAVE_SCOPE:
+                if (curNode->addr.offset > 0) {
+                    asm_emit("\tadd rsp, %ji\n", curNode->addr.offset * 8);
+                    EMIT(emitAddReg64Imm32, R_RSP, curNode->addr.offset * 8);
+                }
+                break;
+
             case IR_RET:
                 // popping result to the rax from stack
                 asm_emit("\tpop  rax\n");

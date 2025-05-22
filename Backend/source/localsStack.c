@@ -22,14 +22,20 @@ BackendStatus_t LocalsStackDelete(LocalsStack_t *stk) {
     return BACKEND_SUCCESS;
 }
 
-BackendStatus_t LocalsStackPopScope(LocalsStack_t *stk) {
+BackendStatus_t LocalsStackPopScope(LocalsStack_t *stk, size_t *variables) {
     logPrint(L_EXTRA, 0, "Popping scope\n");
 
-    while (stk->size && LocalsStackTop(stk)->id >= 0)
+    size_t poppedVariables = 0;
+
+    while (stk->size && LocalsStackTop(stk)->id >= 0) {
         stk->size--;
+        poppedVariables++;
+    }
 
     //stopped on scope separator
     if (stk->size) stk->size--;
+
+    if (variables) *variables = poppedVariables;
 
     return BACKEND_SUCCESS;
 }

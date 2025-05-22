@@ -58,7 +58,7 @@ typedef enum {
     IR_CALL,
     IR_RET,
     IR_SET_FRAME_PTR,
-    // IR_LEAVE,
+    IR_LEAVE_SCOPE,
     IR_START,
     IR_EXIT
 
