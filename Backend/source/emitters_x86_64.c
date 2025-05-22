@@ -40,17 +40,17 @@
 const uint8_t MOD_RM_REG = 0b11;
 
 static uint8_t modRM(uint8_t mod, uint8_t reg, uint8_t rm) {
-    assert(mod < 0b100);
+    assert(mod < 0b0100);
     assert(reg < 0b1000);
-    assert(rm < 0b1000);
+    assert(rm  < 0b1000);
 
     return (mod << 6) | (reg << 3) | (rm);
 }
 
 static uint8_t SIB(uint8_t scale, uint8_t index, uint8_t base) {
-    assert(scale < 0b100);
+    assert(scale < 0b0100);
     assert(index < 0b1000);
-    assert(base < 0b1000);
+    assert(base  < 0b1000);
 
     return (scale << 6) | (index << 3) | (base);
 }

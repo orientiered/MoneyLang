@@ -167,10 +167,11 @@ __stdlib_in:
 
     sub  rsp, 8
     mov  r8, rsp
+    lea  r15, [rel __constants_table] // rip relative addressing for table
 
     pxor xmm0, xmm0  ; xmm0 = 0
     pxor xmm1, xmm1  ; xmm1 = 0
-    movq xmm2, [fp1] ; xmm2 = 1
+    movq xmm2, [rel fp1] ; xmm2 = 1
 
     MACRO_readchar
     xor  r13, r13
@@ -200,8 +201,8 @@ __stdlib_in:
         jae  .conv_end
 
         ;---------- xmm0 = xmm0 * 10 + digit -----------------;
-        mulsd xmm0, [fp10] ; *= 10
-        addsd xmm0, [__constants_table + rsi * 8]
+        mulsd xmm0, [rel fp10] ; *= 10
+        addsd xmm0, [r15 + rsi * 8]
 
         ;---------- reading new char -------------------------;
         MACRO_readchar
@@ -226,11 +227,11 @@ __stdlib_in:
         jae  .conv_end
 
         ;---------- xmm1 = xmm1 * 10 + digit------------------;
-        mulsd xmm1, [fp10] ; *= 10
-        addsd xmm1, [__constants_table + rsi * 8]
+        mulsd xmm1, [rel fp10] ; *= 10
+        addsd xmm1, [r15 + rsi * 8]
 
         ;---------- xmm2 *= 10 -------------------------------;
-        mulsd xmm2, [fp10] ; xmm3 *= 10
+        mulsd xmm2, [rel fp10] ; xmm3 *= 10
 
         jmp .floatPart_loop
 
