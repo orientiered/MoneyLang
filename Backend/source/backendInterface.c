@@ -102,7 +102,7 @@ BackendStatus_t BackendRun(Backend_t *context) {
         return status;
     }
 
-    // IRdump(context);
+    IRdump(context);
 
     status = translateIRtox86Asm(context);
     if (status != BACKEND_SUCCESS) {

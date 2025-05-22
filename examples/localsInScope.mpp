@@ -1,0 +1,20 @@
+Account x %
+Account y %
+
+Invest x %
+Invest y %
+
+if x === 1₽ -> <
+    Account x %
+    Invest x %
+    if y >== 2₽ -> <
+        Account z %
+        z = x + y %
+        ShowBalance z%
+        ShowBalance x%
+    >
+
+    ShowBalance x%
+>
+
+ShowBalance x%

@@ -1,0 +1,24 @@
+Transaction a -> fact ->
+<
+    @ Comparison operators come with more = that you might have expected
+    @ Also all numeric constants must end with $ or ₽.
+    @ Dollars are converted to rubles in frontend with 35:1 ratio
+    if a ==< 1₽ ->
+        @ Pay is return
+        Pay 1₽ %
+
+    Account b %
+    @ Recursion
+    b = fact(a - 1₽) * a %
+
+    Pay b %
+>
+
+Account test %
+test = 500000₽ %
+Account res %
+while test >== 0₽ ->
+<
+    res = fact(5₽) %
+    test = test - 1₽ %
+>

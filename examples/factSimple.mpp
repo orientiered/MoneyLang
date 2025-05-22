@@ -1,0 +1,27 @@
+@ Creating variable a (all values are fixed-point floats)
+Account a %
+
+@ Declaring function fact that takes a as an input
+Transaction a -> fact ->
+<
+    @ Comparison operators come with more = that you might have expected
+    @ Also all numeric constants must end with $ or ₽.
+    @ Dollars are converted to rubles in frontend with 35:1 ratio
+    if a ==< 1₽ ->
+        @ Pay is return
+        Pay 1₽ %
+
+    Account b %
+    @ Recursion
+    b = fact(a - 1₽) * a %
+
+    Pay b %
+>
+
+Txt "Input number: " %
+@ Read value from standard input to a
+@ Invest a %
+a = fact(5₽) %
+@ Print value to standard output
+Txt "Result: " %
+@ ShowBalance fact(a) %

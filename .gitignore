@@ -19,3 +19,4 @@ Backend/asm_tests
 
 *.exe
 *.o
+irDump.txt
