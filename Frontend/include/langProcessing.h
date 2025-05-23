@@ -67,10 +67,10 @@ void printPositionInText(ParseContext_t *context);
         if (context->status == HARD_ERROR) return ret;                      \
         context->status = HARD_ERROR;                                       \
         logPrint(L_ZERO, 1, "Error while parsing context[%p]\n", context);  \
-        logPrint(L_ZERO, 1, "Current position: %s:%d:%d\n",                 \
+        logPrint(L_ZERO, 1, "%s:%d:%d -> ",                                 \
             frontend->inputFileName, context->pointer->line, context->pointer->column);  \
-        printPositionInText(context);                                       \
         logPrint(L_ZERO, 1, __VA_ARGS__);                                   \
+        printPositionInText(context);                                       \
         return ret;                                                         \
     } while(0)
 

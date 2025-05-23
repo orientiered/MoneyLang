@@ -298,7 +298,7 @@ int32_t emitAddsdXmmMemBase(emitCtx_t *ctx, XMM_t dest, REG_t base) {
     PUT_BYTE(0x0F);
     PUT_BYTE(0x58);
 
-    PUT_BYTE(modRM(00, dest, base));
+    PUT_BYTE(modRM(0b00, dest, base));
     if (base == R_RSP)
         PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
 
@@ -321,9 +321,9 @@ int32_t emitSubsdXmmMemBase(emitCtx_t *ctx, XMM_t dest, REG_t base) {
     PUT_BYTE(0x0F);
     PUT_BYTE(0x5C);
 
-    PUT_BYTE(modRM(00, dest, base));
+    PUT_BYTE(modRM(0b00, dest, base));
     if (base == R_RSP)
-        PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
+        PUT_BYTE(SIB(0b00, R_RSP, R_RSP)); // index is not used, base is RSP
 
     bin_emit();
     return size;
@@ -344,9 +344,9 @@ int32_t emitMulsdXmmMemBase(emitCtx_t *ctx, XMM_t dest, REG_t base) {
     PUT_BYTE(0x0F);
     PUT_BYTE(0x59);
 
-    PUT_BYTE(modRM(00, dest, base));
+    PUT_BYTE(modRM(0b00, dest, base));
     if (base == R_RSP)
-        PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
+        PUT_BYTE(SIB(0b00, R_RSP, R_RSP)); // index is not used, base is RSP
 
     bin_emit();
     return size;
@@ -367,9 +367,9 @@ int32_t emitDivsdXmmMemBase(emitCtx_t *ctx, XMM_t dest, REG_t base) {
     PUT_BYTE(0x0F);
     PUT_BYTE(0x5E);
 
-    PUT_BYTE(modRM(00, dest, base));
+    PUT_BYTE(modRM(0b00, dest, base));
     if (base == R_RSP)
-        PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
+        PUT_BYTE(SIB(0b00, R_RSP, R_RSP)); // index is not used, base is RSP
 
     bin_emit();
     return size;
@@ -433,7 +433,7 @@ int32_t emitCmpsdXmmMemBase(emitCtx_t *ctx, XMM_t arg1, REG_t base, enum IRCmpTy
 
     PUT_BYTE(modRM(00, arg1, base));
     if (base == R_RSP)
-        PUT_BYTE(SIB(0, R_RSP, R_RSP)); // index is not used, base is RSP
+        PUT_BYTE(SIB(0b00, R_RSP, R_RSP)); // index is not used, base is RSP
 
     uint8_t imm = 0;
     switch(cmpType) {
@@ -549,5 +549,6 @@ int32_t emitCall(emitCtx_t *ctx, int32_t offset) {
     PUT_IMM32(offset); // immediate
 
     bin_emit();
+
     return size;
 }

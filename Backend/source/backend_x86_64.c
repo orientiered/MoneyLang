@@ -160,7 +160,7 @@ static BackendStatus_t emitCtxCtor(Backend_t *backend) {
         .asmFile      = NULL,
         .asmFirstPass = NULL,
         .emitting     = false,
-        .lstEmit      = false,
+        .lstEmit      = backend->mode.lst,
     };
 
     const char *outName = backend->outputFileName;

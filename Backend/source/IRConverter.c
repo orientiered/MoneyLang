@@ -490,11 +490,20 @@ static BackendStatus_t convertAssign(BackendContext_t *backend, Node_t *node) {
     return BACKEND_SUCCESS;
 }
 
+static void leaveAndPopScope(BackendContext_t *backend) {
+    // Removing variables allocated on stack
+    size_t varsInScope = 0;
+    LocalsStackPopScope(&backend->stk, &varsInScope);
+
+    IRprintf(backend, "Deallocating local variables");
+    IRNode_t *leaveScope = IRnodeCtor(backend, IR_LEAVE_SCOPE);
+    leaveScope->addr.offset = varsInScope;
+}
+
 static BackendStatus_t convertIfElse(BackendContext_t *backend, Node_t *node) {
     assert(backend);
     assert(node);
 
-    LocalsStackInitScope(&backend->stk, NORMAL_SCOPE);
 
     int currentIf = backend->ifCounter++;
     // Converting condinional part of the if
@@ -507,16 +516,25 @@ static BackendStatus_t convertIfElse(BackendContext_t *backend, Node_t *node) {
 
 
     if (!hasElse) {
+
+
         // Jump to the end on condition fail
         IRNode_t *endJump = IRnodeCtor(backend, IR_JZ);
+
+        // ------------ Local scope start -----------------
+        LocalsStackInitScope(&backend->stk, NORMAL_SCOPE);
 
         // Statement
         IRprintf(backend, "if %d: statement", currentIf);
         RET_ON_ERROR(convertASTtoIRrecursive(backend, node->right));
 
+        leaveAndPopScope(backend);
+        // ------------ Local scope end -----------------
+
         // End label
         uint32_t ifEndIdx = IRcreateLabel(backend, "IF%d_END", currentIf);
         endJump->addr.offset = ifEndIdx;
+
 
     } else {
         node = node->right;
@@ -524,19 +542,32 @@ static BackendStatus_t convertIfElse(BackendContext_t *backend, Node_t *node) {
         // Jump to the else branch on condition fail
         IRNode_t *elseJump = IRnodeCtor(backend, IR_JZ);
 
+    /* -------------------- if part --------------------------------------- */
+        // ------------ Local scope start -----------------
+        LocalsStackInitScope(&backend->stk, NORMAL_SCOPE);
+
         // If Statement
         IRprintf(backend, "if %d: statement", currentIf);
         RET_ON_ERROR(convertASTtoIRrecursive(backend, node->left));
 
+        leaveAndPopScope(backend);
         // Jump to the end
         IRNode_t *endJump = IRnodeCtor(backend, IR_JMP);
 
+    /* -------------------- else part --------------------------------------- */
         // Else label
         uint32_t elseLabelIdx = IRcreateLabel(backend, "IF%d_ELSE", currentIf);
         elseJump->addr.offset = elseLabelIdx;
 
+        // ------------ Local scope start -----------------
+        LocalsStackInitScope(&backend->stk, NORMAL_SCOPE);
+
         // Else statement
         RET_ON_ERROR(convertASTtoIRrecursive(backend, node->right));
+
+        leaveAndPopScope(backend);
+        // ------------ Local scope end   -----------------
+
 
         // End label
         uint32_t endLabelIdx = IRcreateLabel(backend, "IF%d_END", currentIf);
@@ -544,13 +575,7 @@ static BackendStatus_t convertIfElse(BackendContext_t *backend, Node_t *node) {
 
     }
 
-    size_t varsInScope = 0;
-    LocalsStackPopScope(&backend->stk, &varsInScope);
 
-    // Removing variables allocated on stack
-    IRprintf(backend, "Deallocating local variables");
-    IRNode_t *leaveScope = IRnodeCtor(backend, IR_LEAVE_SCOPE);
-    leaveScope->addr.offset = varsInScope;
 
     return BACKEND_SUCCESS;
 }

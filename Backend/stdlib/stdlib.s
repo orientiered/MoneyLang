@@ -133,7 +133,7 @@ __stdlib_out:
 ;   none
 ; Ret:
 ;   rax - scanned floating point number
-; Destr: syscall, r13, r8
+; Destr: syscall, r13, r8, r15
 ;======================================================;
 
 __constants_table:
@@ -167,7 +167,7 @@ __stdlib_in:
 
     sub  rsp, 8
     mov  r8, rsp
-    lea  r15, [rel __constants_table] // rip relative addressing for table
+    lea  r15, [rel __constants_table] ; rip relative addressing for table
 
     pxor xmm0, xmm0  ; xmm0 = 0
     pxor xmm1, xmm1  ; xmm1 = 0
